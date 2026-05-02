@@ -11,7 +11,7 @@ public:
     std::optional<VersionInfo> checkForUpdate (juce::StringRef product,
                                                juce::StringRef currentVersion,
                                                ReleaseTrack track = ReleaseTrack::Stable,
-                                               juce::StringRef variant = "premium");
+                                               juce::StringRef variant = "free");
 
     juce::Result getLastResult() const;
 

@@ -6,6 +6,8 @@
 #define OSCI_LICENSING_RELEASE_PUBLIC_KEY_B64 ""
 #endif
 
+#include "../third_party/monocypher/monocypher-ed25519.h"
+
 namespace osci::licensing
 {
 namespace
@@ -85,13 +87,18 @@ namespace
         if (verifierOverride != nullptr)
             return verifierOverride (message, signature, publicKey);
 
-        juce::ignoreUnused (message, signature, publicKey);
-        return false;
+        if (signature.getSize() != 64 || publicKey.getSize() != 32)
+            return false;
+
+        return crypto_ed25519_check (static_cast<const uint8_t*> (signature.getData()),
+                                     static_cast<const uint8_t*> (publicKey.getData()),
+                                     static_cast<const uint8_t*> (message.getData()),
+                                     message.getSize()) == 0;
     }
 
     bool hasVerifier()
     {
-        return verifierOverride != nullptr;
+        return true;
     }
 
     std::optional<juce::MemoryBlock> configuredBackendPublicKey()

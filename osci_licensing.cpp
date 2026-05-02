@@ -1,5 +1,8 @@
 #include "osci_licensing.h"
 
+#include "third_party/monocypher/monocypher.c"
+#include "third_party/monocypher/monocypher-ed25519.c"
+
 #include "license/osci_LicenseToken.cpp"
 #include "network/osci_BackendClient.cpp"
 #include "license/osci_LicenseManager.cpp"
