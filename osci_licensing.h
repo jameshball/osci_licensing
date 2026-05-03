@@ -34,6 +34,7 @@
 #include "system/osci_HardwareInfo.h"
 #include "system/osci_DawProcessDetector.h"
 #include "update/osci_UpdateChecker.h"
+#include "update/osci_FileHash.h"
 #include "update/osci_Downloader.h"
 #include "update/osci_PendingInstall.h"
 #include "update/osci_InstallerLauncher.h"

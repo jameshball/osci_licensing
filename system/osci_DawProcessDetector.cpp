@@ -136,6 +136,19 @@ juce::Array<DetectedDawProcess> DawProcessDetector::scan() {
     return detected;
 }
 
+void DawProcessDetector::scanAsync (ScanCallback callback) {
+    if (callback == nullptr) {
+        return;
+    }
+
+    juce::Thread::launch ([callback = std::move (callback)]() mutable {
+        auto detected = scan();
+        juce::MessageManager::callAsync ([callback = std::move (callback), detected = std::move (detected)]() mutable {
+            callback (std::move (detected));
+        });
+    });
+}
+
 bool DawProcessDetector::isKnownDawProcessName (juce::StringRef processName, juce::String* matchedDisplayName) {
     const auto normalised = normaliseProcessName (juce::String (processName));
     if (normalised.isEmpty()) {

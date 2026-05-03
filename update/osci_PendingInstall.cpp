@@ -135,12 +135,18 @@ juce::Result PendingInstall::validateArtifact (const PendingInstallMarker& marke
     if (! artifact.existsAsFile())
         return juce::Result::fail ("Pending installer file is missing");
 
-    if (marker.sha256.isEmpty())
+    if (marker.sha256.isEmpty()) {
         return juce::Result::fail ("Pending installer SHA-256 is missing");
+    }
 
-    const auto actualSha256 = juce::SHA256 (artifact).toHexString().toLowerCase();
-    if (actualSha256 != marker.sha256.toLowerCase())
+    const auto actualSha256 = fileSha256Hex (artifact);
+    if (actualSha256.isEmpty()) {
+        return juce::Result::fail ("Could not read pending installer file");
+    }
+
+    if (actualSha256 != marker.sha256.toLowerCase()) {
         return juce::Result::fail ("Pending installer SHA-256 does not match");
+    }
 
     return juce::Result::ok();
 }

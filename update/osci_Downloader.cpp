@@ -48,8 +48,13 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
             .withConnectionTimeoutMs (30000)
             .withStatusCode (&statusCode));
 
-    if (stream == nullptr || statusCode < 200 || statusCode >= 300)
-        return juce::Result::fail ("Could not open download URL");
+    if (stream == nullptr) {
+        return juce::Result::fail ("Could not connect to the download server.");
+    }
+
+    if (statusCode < 200 || statusCode >= 300) {
+        return juce::Result::fail ("Download server returned HTTP " + juce::String (statusCode) + ".");
+    }
 
     juce::FileOutputStream output (target);
     if (! output.openedOk())
@@ -94,9 +99,13 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
 
     output.flush();
 
-    const auto actualSha256 = juce::SHA256 (target).toHexString().toLowerCase();
-    if (actualSha256 != version.sha256.toLowerCase())
-    {
+    const auto actualSha256 = fileSha256Hex (target);
+    if (actualSha256.isEmpty()) {
+        target.deleteFile();
+        return juce::Result::fail ("Could not read downloaded file for SHA-256 verification");
+    }
+
+    if (actualSha256 != version.sha256.toLowerCase()) {
         target.deleteFile();
         return juce::Result::fail ("Downloaded file SHA-256 does not match manifest");
     }

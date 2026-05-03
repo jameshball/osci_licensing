@@ -18,7 +18,7 @@ namespace
     {
         if (auto* object = body.getDynamicObject())
         {
-            for (const auto& key : { "error", "message" })
+            for (const auto& key : { "error", "message", "detail" })
             {
                 const auto value = object->getProperty (key).toString();
                 if (value.isNotEmpty())
@@ -26,7 +26,23 @@ namespace
             }
         }
 
-        return "Request failed with HTTP " + juce::String (statusCode);
+        if (statusCode > 0) {
+            return "Request failed with HTTP " + juce::String (statusCode);
+        }
+
+        return "Request failed";
+    }
+
+    juce::String connectionFailureMessage (juce::StringRef baseUrl) {
+        return "Could not connect to " + juce::String (baseUrl) + ". Check your internet connection and try again.";
+    }
+
+    juce::String httpFailureMessage (juce::StringRef baseUrl, int statusCode) {
+        return "Request to " + juce::String (baseUrl) + " failed with HTTP " + juce::String (statusCode) + ".";
+    }
+
+    juce::String invalidJsonMessage (juce::StringRef baseUrl) {
+        return "Server returned an invalid response from " + juce::String (baseUrl) + ".";
     }
 
     juce::var makeObject()
@@ -203,8 +219,13 @@ juce::Result BackendClient::activateLicense (juce::StringRef licenseKey,
     }
 
     auto* object = body.getDynamicObject();
-    if (object == nullptr || ! static_cast<bool> (object->getProperty ("success")))
+    if (object == nullptr) {
         return juce::Result::fail ("Activation response was invalid");
+    }
+
+    if (object->hasProperty ("success") && ! static_cast<bool> (object->getProperty ("success"))) {
+        return juce::Result::fail (errorFromJson (body, 200));
+    }
 
     response.token = getString (*object, "token");
     response.issuedAtSeconds = getInt64 (*object, "issued_at");
@@ -241,8 +262,13 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
     }
 
     auto* object = body.getDynamicObject();
-    if (object == nullptr || ! static_cast<bool> (object->getProperty ("success")))
+    if (object == nullptr) {
         return juce::Result::fail ("Version response was invalid");
+    }
+
+    if (object->hasProperty ("success") && ! static_cast<bool> (object->getProperty ("success"))) {
+        return juce::Result::fail (errorFromJson (body, 200));
+    }
 
     if (object->hasProperty ("version"))
     {
@@ -306,8 +332,13 @@ juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
     }
 
     auto* object = body.getDynamicObject();
-    if (object == nullptr)
+    if (object == nullptr) {
         return juce::Result::fail ("Download response was invalid");
+    }
+
+    if (object->hasProperty ("success") && ! static_cast<bool> (object->getProperty ("success"))) {
+        return juce::Result::fail (errorFromJson (body, 200));
+    }
 
     url = getString (*object, "url");
     if (url.isEmpty())
@@ -354,7 +385,7 @@ juce::Result BackendClient::getJson (juce::StringRef path,
     if (stream == nullptr)
     {
         logApiResponse ("GET", requestUrl, statusCode, "<no response>");
-        return juce::Result::fail ("Could not connect to " + endpoint (path));
+        return juce::Result::fail (connectionFailureMessage (config.apiBaseUrl));
     }
 
     const auto responseText = stream->readEntireStreamAsString();
@@ -366,14 +397,16 @@ juce::Result BackendClient::getJson (juce::StringRef path,
     {
         // Surface the actual HTTP error rather than hiding it behind a JSON
         // parse failure when the server returns e.g. a 502 HTML body.
-        if (parseResult.failed())
-            return juce::Result::fail ("Request failed with HTTP " + juce::String (statusCode));
+        if (parseResult.failed()) {
+            return juce::Result::fail (httpFailureMessage (config.apiBaseUrl, statusCode));
+        }
 
         return juce::Result::fail (errorFromJson (response, statusCode));
     }
 
-    if (parseResult.failed())
-        return parseResult;
+    if (parseResult.failed()) {
+        return juce::Result::fail (invalidJsonMessage (config.apiBaseUrl));
+    }
 
     return juce::Result::ok();
 }
@@ -397,7 +430,7 @@ juce::Result BackendClient::postJson (juce::StringRef path,
     if (stream == nullptr)
     {
         logApiResponse ("POST", requestUrl, statusCode, "<no response>");
-        return juce::Result::fail ("Could not connect to " + endpoint (path));
+        return juce::Result::fail (connectionFailureMessage (config.apiBaseUrl));
     }
 
     const auto responseText = stream->readEntireStreamAsString();
@@ -407,14 +440,16 @@ juce::Result BackendClient::postJson (juce::StringRef path,
 
     if (! isSuccess)
     {
-        if (parseResult.failed())
-            return juce::Result::fail ("Request failed with HTTP " + juce::String (statusCode));
+        if (parseResult.failed()) {
+            return juce::Result::fail (httpFailureMessage (config.apiBaseUrl, statusCode));
+        }
 
         return juce::Result::fail (errorFromJson (response, statusCode));
     }
 
-    if (parseResult.failed())
-        return parseResult;
+    if (parseResult.failed()) {
+        return juce::Result::fail (invalidJsonMessage (config.apiBaseUrl));
+    }
 
     return juce::Result::ok();
 }
