@@ -14,7 +14,7 @@ Downloader::Downloader (Config configToUse)
 }
 
 juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
-                                            juce::StringRef licenseKey,
+                                            juce::StringRef licenseToken,
                                             Progress progress)
 {
     if (! LicenseToken::canVerifyReleaseSignatures())
@@ -24,8 +24,15 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         return juce::Result::fail ("Release signature does not verify");
 
     juce::String downloadUrl;
-    if (auto result = backend.getDownloadUrl (version, licenseKey, downloadUrl); result.failed())
+    if (auto result = backend.getDownloadUrl (version, licenseToken, downloadUrl); result.failed())
         return result;
+
+    // Defense in depth: only follow https URLs. Integrity is already enforced
+    // by SHA-256 + ed25519 verification, but reject obviously wrong schemes
+    // (file://, http://) up front so a misconfigured or compromised backend
+    // cannot redirect the client to internal/local resources.
+    if (! downloadUrl.startsWithIgnoreCase ("https://"))
+        return juce::Result::fail ("Download URL must use https");
 
     if (! config.downloadDirectory.createDirectory())
         return juce::Result::fail ("Could not create download directory");
@@ -47,6 +54,16 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         return juce::Result::fail ("Could not write download file");
 
     constexpr int bufferSize = 64 * 1024;
+    // Hard cap: refuse downloads larger than 1 GB so a buggy or hostile
+    // backend can't fill the user's disk before SHA-256 verification catches
+    // the mismatch. If a server-supplied size is available, additionally
+    // refuse anything more than 1.5x that hint.
+    constexpr juce::int64 absoluteSizeCap = 1024LL * 1024LL * 1024LL;
+    const juce::int64 reportedSize = juce::jmax<juce::int64> (version.sizeBytes, 0);
+    const juce::int64 sizeCap = reportedSize > 0
+        ? juce::jmin (absoluteSizeCap, reportedSize + reportedSize / 2)
+        : absoluteSizeCap;
+
     juce::HeapBlock<char> buffer (bufferSize);
     juce::int64 downloadedBytes = 0;
     const auto totalBytes = stream->getTotalLength();
@@ -61,6 +78,13 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
             return juce::Result::fail ("Could not write download file");
 
         downloadedBytes += bytesRead;
+        if (downloadedBytes > sizeCap)
+        {
+            output.flush();
+            target.deleteFile();
+            return juce::Result::fail ("Download exceeded the maximum allowed size");
+        }
+
         if (progress != nullptr)
             progress (totalBytes > 0 ? static_cast<double> (downloadedBytes) / static_cast<double> (totalBytes) : -1.0,
                       downloadedBytes);

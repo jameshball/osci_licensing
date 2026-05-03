@@ -63,7 +63,7 @@ public:
                                   ActivationResponse& response) const;
 
     juce::Result getLatestVersion (const VersionQuery& query, VersionInfo& response) const;
-    juce::Result getDownloadUrl (const VersionInfo& version, juce::StringRef licenseKey, juce::String& url) const;
+    juce::Result getDownloadUrl (const VersionInfo& version, juce::StringRef licenseToken, juce::String& url) const;
 
     const BackendClientConfig& getConfig() const noexcept { return config; }
 

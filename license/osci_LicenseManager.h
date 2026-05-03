@@ -9,7 +9,7 @@ public:
     enum class Status
     {
         Free,
-        PremiumOnline,
+        PremiumValid,
         PremiumCachedToken,
         ExpiredOffline,
     };
@@ -38,6 +38,7 @@ public:
 
     juce::ValueTree getStateForUi() const;
     std::optional<LicenseTokenPayload> getPayload() const;
+    juce::String getCachedToken() const;
 
     juce::File getTokenFile() const;
 

@@ -18,7 +18,7 @@ public:
     explicit Downloader (Config config);
 
     juce::Result downloadAndVerify (const VersionInfo& version,
-                                    juce::StringRef licenseKey,
+                                    juce::StringRef licenseToken,
                                     Progress progress = {});
 
     juce::File getDownloadedFile() const;

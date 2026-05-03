@@ -1,5 +1,9 @@
 namespace osci::licensing
 {
+#ifndef OSCI_LICENSING_ENABLE_API_LOGGING
+#define OSCI_LICENSING_ENABLE_API_LOGGING 1
+#endif
+
 namespace
 {
     juce::String trimTrailingSlash (juce::String text)
@@ -44,6 +48,136 @@ namespace
     juce::int64 getInt64 (juce::DynamicObject& object, const juce::Identifier& key)
     {
         return static_cast<juce::int64> (object.getProperty (key));
+    }
+
+    bool isVersionNewer (juce::StringRef candidateVersion, juce::StringRef currentVersion)
+    {
+        juce::StringArray candidateParts;
+        juce::StringArray currentParts;
+        candidateParts.addTokens (juce::String (candidateVersion), ".", {});
+        currentParts.addTokens (juce::String (currentVersion), ".", {});
+
+        for (int index = 0; index < 4; ++index)
+        {
+            const auto candidate = index < candidateParts.size() ? candidateParts[index].getIntValue() : 0;
+            const auto current = index < currentParts.size() ? currentParts[index].getIntValue() : 0;
+            if (candidate != current)
+                return candidate > current;
+        }
+
+        return false;
+    }
+
+    void populateVersionInfoFromPayload (VersionInfo& response,
+                                         const VersionQuery& query,
+                                         juce::DynamicObject& versionObject)
+    {
+        response.product = query.product;
+        response.releaseTrack = getString (versionObject, "release_track");
+        response.variant = getString (versionObject, "variant");
+        response.semver = getString (versionObject, "semver");
+        response.isNewer = isVersionNewer (response.semver, query.currentVersion);
+        response.notesMarkdown = getString (versionObject, "notes_md");
+        response.minSupportedFrom = getString (versionObject, "min_supported_from");
+        response.platform = getString (versionObject, "platform");
+        response.artifactKind = getString (versionObject, "artifact_kind");
+        response.sha256 = getString (versionObject, "sha256");
+        response.ed25519Signature = getString (versionObject, "ed25519_sig");
+        response.sizeBytes = getInt64 (versionObject, "size_bytes");
+    }
+
+#if OSCI_LICENSING_ENABLE_API_LOGGING
+    bool isSensitiveJsonKey (juce::StringRef key)
+    {
+        const auto lower = juce::String (key).toLowerCase();
+        return lower == "license_key"
+            || lower == "license_token"
+            || lower == "token"
+            || lower == "url"
+            || lower == "email"
+            || lower == "em";
+    }
+
+    juce::var redactedJsonValue (const juce::var& value)
+    {
+        if (auto* object = value.getDynamicObject())
+        {
+            auto* redacted = new juce::DynamicObject();
+            const auto& properties = object->getProperties();
+
+            for (int index = 0; index < properties.size(); ++index)
+            {
+                const auto name = properties.getName (index);
+                redacted->setProperty (name,
+                                       isSensitiveJsonKey (name.toString())
+                                           ? juce::var ("<redacted>")
+                                           : redactedJsonValue (properties.getValueAt (index)));
+            }
+
+            return juce::var (redacted);
+        }
+
+        if (auto* array = value.getArray())
+        {
+            juce::Array<juce::var> redacted;
+            for (const auto& item : *array)
+                redacted.add (redactedJsonValue (item));
+
+            return juce::var (redacted);
+        }
+
+        return value;
+    }
+
+    juce::String redactedJsonText (juce::StringRef text)
+    {
+        if (text.isEmpty())
+            return {};
+
+        juce::var parsed;
+        if (juce::JSON::parse (juce::String (text), parsed).failed())
+            return "<non-json body, " + juce::String (juce::String (text).getNumBytesAsUTF8()) + " bytes>";
+
+        return juce::JSON::toString (redactedJsonValue (parsed), true);
+    }
+
+    juce::String redactedUrl (juce::StringRef url)
+    {
+        auto text = juce::String (url);
+        const auto queryStart = text.indexOfChar ('?');
+        if (queryStart >= 0)
+            text = text.substring (0, queryStart) + "?<query>";
+
+        return text;
+    }
+#endif
+
+    void logApiRequest (juce::StringRef method, juce::StringRef url, juce::StringRef body = {})
+    {
+#if OSCI_LICENSING_ENABLE_API_LOGGING
+        juce::String message = "[osci_licensing] API request ";
+        message << method << " " << redactedUrl (url);
+        if (body.isNotEmpty())
+            message << " body=" << redactedJsonText (body);
+
+        juce::Logger::writeToLog (message);
+#else
+        juce::ignoreUnused (method, url, body);
+#endif
+    }
+
+    void logApiResponse (juce::StringRef method, juce::StringRef url, int statusCode, juce::StringRef body)
+    {
+#if OSCI_LICENSING_ENABLE_API_LOGGING
+        juce::String message = "[osci_licensing] API response ";
+        message << method << " " << redactedUrl (url) << " status=" << statusCode;
+        if (body.isNotEmpty())
+            message << " body=" << redactedJsonText (body);
+
+        juce::Logger::writeToLog (message);
+#else
+        juce::ignoreUnused (method, url, statusCode, body);
+#endif
     }
 }
 
@@ -106,6 +240,25 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
     if (object == nullptr || ! static_cast<bool> (object->getProperty ("success")))
         return juce::Result::fail ("Version response was invalid");
 
+    if (object->hasProperty ("version"))
+    {
+        auto* versionObject = object->getProperty ("version").getDynamicObject();
+        if (versionObject == nullptr)
+        {
+            response.product = query.product;
+            response.releaseTrack = toString (query.releaseTrack);
+            response.variant = query.variant;
+            response.isNewer = false;
+            return juce::Result::ok();
+        }
+
+        populateVersionInfoFromPayload (response, query, *versionObject);
+        if (response.semver.isEmpty() || response.platform.isEmpty() || response.sha256.isEmpty())
+            return juce::Result::fail ("Version response was incomplete");
+
+        return juce::Result::ok();
+    }
+
     auto* manifest = object->getProperty ("manifest").getDynamicObject();
     if (manifest == nullptr)
         return juce::Result::fail ("Version response did not include a manifest");
@@ -130,7 +283,7 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
 }
 
 juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
-                                            juce::StringRef licenseKey,
+                                            juce::StringRef licenseToken,
                                             juce::String& url) const
 {
     auto request = makeObject();
@@ -139,8 +292,8 @@ juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
     setProperty (request, "release_track", version.releaseTrack);
     setProperty (request, "variant", version.variant);
     setProperty (request, "platform", version.platform);
-    if (licenseKey.isNotEmpty())
-        setProperty (request, "license_key", juce::String (licenseKey));
+    if (licenseToken.isNotEmpty())
+        setProperty (request, "license_token", juce::String (licenseToken));
 
     juce::var body;
     if (auto result = postJson ("/api/version/download-url", request, body); result.failed())
@@ -183,6 +336,9 @@ juce::Result BackendClient::getJson (juce::StringRef path,
         if (params[key].isNotEmpty())
             url = url.withParameter (key, params[key]);
 
+    const auto requestUrl = url.toString (true);
+    logApiRequest ("GET", requestUrl);
+
     int statusCode = 0;
     auto stream = url.createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
                                              .withConnectionTimeoutMs (config.timeoutMs)
@@ -190,14 +346,28 @@ juce::Result BackendClient::getJson (juce::StringRef path,
                                              .withExtraHeaders ("Accept: application/json\r\n"));
 
     if (stream == nullptr)
+    {
+        logApiResponse ("GET", requestUrl, statusCode, "<no response>");
         return juce::Result::fail ("Could not connect to " + endpoint (path));
+    }
 
     const auto responseText = stream->readEntireStreamAsString();
-    if (auto parseResult = juce::JSON::parse (responseText, response); parseResult.failed())
-        return parseResult;
+    logApiResponse ("GET", requestUrl, statusCode, responseText);
+    const auto isSuccess = statusCode >= 200 && statusCode < 300;
+    auto parseResult = juce::JSON::parse (responseText, response);
 
-    if (statusCode < 200 || statusCode >= 300)
+    if (! isSuccess)
+    {
+        // Surface the actual HTTP error rather than hiding it behind a JSON
+        // parse failure when the server returns e.g. a 502 HTML body.
+        if (parseResult.failed())
+            return juce::Result::fail ("Request failed with HTTP " + juce::String (statusCode));
+
         return juce::Result::fail (errorFromJson (response, statusCode));
+    }
+
+    if (parseResult.failed())
+        return parseResult;
 
     return juce::Result::ok();
 }
@@ -206,7 +376,10 @@ juce::Result BackendClient::postJson (juce::StringRef path,
                                       const juce::var& body,
                                       juce::var& response) const
 {
-    auto url = juce::URL (endpoint (path)).withPOSTData (juce::JSON::toString (body, true));
+    const auto requestText = juce::JSON::toString (body, true);
+    auto url = juce::URL (endpoint (path)).withPOSTData (requestText);
+    const auto requestUrl = endpoint (path);
+    logApiRequest ("POST", requestUrl, requestText);
 
     int statusCode = 0;
     auto stream = url.createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inPostData)
@@ -216,14 +389,26 @@ juce::Result BackendClient::postJson (juce::StringRef path,
                                              .withExtraHeaders ("Content-Type: application/json\r\nAccept: application/json\r\n"));
 
     if (stream == nullptr)
+    {
+        logApiResponse ("POST", requestUrl, statusCode, "<no response>");
         return juce::Result::fail ("Could not connect to " + endpoint (path));
+    }
 
     const auto responseText = stream->readEntireStreamAsString();
-    if (auto parseResult = juce::JSON::parse (responseText, response); parseResult.failed())
-        return parseResult;
+    logApiResponse ("POST", requestUrl, statusCode, responseText);
+    const auto isSuccess = statusCode >= 200 && statusCode < 300;
+    auto parseResult = juce::JSON::parse (responseText, response);
 
-    if (statusCode < 200 || statusCode >= 300)
+    if (! isSuccess)
+    {
+        if (parseResult.failed())
+            return juce::Result::fail ("Request failed with HTTP " + juce::String (statusCode));
+
         return juce::Result::fail (errorFromJson (response, statusCode));
+    }
+
+    if (parseResult.failed())
+        return parseResult;
 
     return juce::Result::ok();
 }

@@ -29,7 +29,7 @@ bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcep
 {
     juce::ignoreUnused (featureGroup);
     const juce::SpinLock::ScopedLockType lock (stateLock);
-    return (currentStatus == Status::PremiumOnline || currentStatus == Status::PremiumCachedToken)
+    return (currentStatus == Status::PremiumValid || currentStatus == Status::PremiumCachedToken)
            && cachedPayload.has_value() && cachedPayload->isPremium();
 }
 
@@ -132,7 +132,7 @@ juce::ValueTree LicenseManager::getStateForUi() const
     const juce::SpinLock::ScopedLockType lock (stateLock);
     juce::ValueTree state ("license");
     state.setProperty ("status", statusToString (currentStatus), nullptr);
-    state.setProperty ("premium", currentStatus == Status::PremiumOnline || currentStatus == Status::PremiumCachedToken, nullptr);
+    state.setProperty ("premium", currentStatus == Status::PremiumValid || currentStatus == Status::PremiumCachedToken, nullptr);
 
     if (cachedPayload.has_value())
     {
@@ -151,6 +151,12 @@ std::optional<LicenseTokenPayload> LicenseManager::getPayload() const
     return cachedPayload;
 }
 
+juce::String LicenseManager::getCachedToken() const
+{
+    const juce::SpinLock::ScopedLockType lock (stateLock);
+    return cachedToken;
+}
+
 juce::File LicenseManager::getTokenFile() const
 {
     return config.storageDirectory.getChildFile ("license.dat");
@@ -162,7 +168,7 @@ void LicenseManager::setStateFromValidation (const LicenseTokenValidation& valid
     cachedToken = std::move (token);
     cachedPayload = validation.payload;
     currentStatus = validation.payload.isPremium()
-        ? (validation.withinOfflineGrace ? Status::PremiumCachedToken : Status::PremiumOnline)
+        ? (validation.withinOfflineGrace ? Status::PremiumCachedToken : Status::PremiumValid)
         : Status::Free;
 }
 
@@ -171,7 +177,7 @@ juce::String LicenseManager::statusToString (Status status)
     switch (status)
     {
         case Status::Free: return "free";
-        case Status::PremiumOnline: return "premium_online";
+        case Status::PremiumValid: return "premium_valid";
         case Status::PremiumCachedToken: return "premium_cached_token";
         case Status::ExpiredOffline: return "expired_offline";
     }
