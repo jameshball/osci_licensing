@@ -75,7 +75,7 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
     juce::int64 downloadedBytes = 0;
     const auto totalBytes = stream->getTotalLength();
 
-    for (;;) {
+    while (true) {
         const auto bytesRead = stream->read (buffer.get(), bufferSize);
         if (bytesRead <= 0) {
             break;
