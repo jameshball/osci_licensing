@@ -1,4 +1,4 @@
-namespace osci::licensing
+namespace osci
 {
 
 LicenseManager::LicenseManager()
@@ -7,10 +7,10 @@ LicenseManager::LicenseManager()
 }
 
 LicenseManager::LicenseManager (Config configToUse)
-    : config (std::move (configToUse)), backend (config.backend)
+    : config (std::move (configToUse)),
+      backend (config.backend),
+      settings (config.settingsOptions)
 {
-    if (config.storageDirectory == juce::File())
-        config.storageDirectory = HardwareInfo::getDefaultStorageDirectory (config.productSlug);
 }
 
 LicenseManager& LicenseManager::instance()
@@ -35,17 +35,12 @@ bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcep
 
 juce::Result LicenseManager::loadCachedToken()
 {
-    const auto tokenFile = getTokenFile();
-    if (! tokenFile.existsAsFile())
-    {
-        deactivate();
-        return juce::Result::ok();
-    }
+    settings.reload();
 
-    const auto token = tokenFile.loadFileAsString().trim();
+    const auto token = settings.getString (getTokenSettingsKey()).trim();
     if (token.isEmpty())
     {
-        deactivate();
+        clearCachedState();
         return juce::Result::ok();
     }
 
@@ -70,18 +65,20 @@ juce::Result LicenseManager::loadCachedToken()
 juce::Result LicenseManager::activate (juce::StringRef licenseKey)
 {
     ActivationResponse activation;
-    if (auto result = backend.activateLicense (licenseKey, config.productSlug, activation); result.failed())
-        return result;
+    const auto activationResult = backend.activateLicense (licenseKey, config.productSlug, activation);
+    if (activationResult.failed()) {
+        return activationResult;
+    }
 
     const auto validation = LicenseToken::validate (activation.token, juce::Time::getCurrentTime(), config.offlineGrace);
-    if (validation.result.failed())
+    if (validation.result.failed()) {
         return validation.result;
+    }
 
-    if (! config.storageDirectory.createDirectory())
-        return juce::Result::fail ("Could not create license storage directory");
-
-    if (! getTokenFile().replaceWithText (activation.token))
+    settings.set (getTokenSettingsKey(), activation.token);
+    if (! settings.save()) {
         return juce::Result::fail ("Could not write license token");
+    }
 
     setStateFromValidation (validation, activation.token);
     return juce::Result::ok();
@@ -98,7 +95,8 @@ juce::Result LicenseManager::refreshNow()
 
     if (licenseKey.isEmpty())
     {
-        const auto token = getTokenFile().loadFileAsString().trim();
+        settings.reload();
+        const auto token = settings.getString (getTokenSettingsKey()).trim();
         if (auto payload = LicenseToken::inspectUnverified (token))
             licenseKey = payload->licenseKey;
     }
@@ -119,12 +117,9 @@ void LicenseManager::scheduleBackgroundRefresh()
 
 void LicenseManager::deactivate()
 {
-    getTokenFile().deleteFile();
-
-    const juce::SpinLock::ScopedLockType lock (stateLock);
-    currentStatus = Status::Free;
-    cachedToken.clear();
-    cachedPayload.reset();
+    settings.remove (getTokenSettingsKey());
+    settings.save();
+    clearCachedState();
 }
 
 juce::ValueTree LicenseManager::getStateForUi() const
@@ -157,9 +152,14 @@ juce::String LicenseManager::getCachedToken() const
     return cachedToken;
 }
 
-juce::File LicenseManager::getTokenFile() const
+juce::String LicenseManager::getTokenSettingsKey() const
 {
-    return config.storageDirectory.getChildFile ("license.dat");
+    return "license." + config.productSlug + ".token";
+}
+
+juce::File LicenseManager::getSettingsFile() const
+{
+    return settings.getFile();
 }
 
 void LicenseManager::setStateFromValidation (const LicenseTokenValidation& validation, juce::String token)
@@ -170,6 +170,14 @@ void LicenseManager::setStateFromValidation (const LicenseTokenValidation& valid
     currentStatus = validation.payload.isPremium()
         ? (validation.withinOfflineGrace ? Status::PremiumCachedToken : Status::PremiumValid)
         : Status::Free;
+}
+
+void LicenseManager::clearCachedState()
+{
+    const juce::SpinLock::ScopedLockType lock (stateLock);
+    currentStatus = Status::Free;
+    cachedToken.clear();
+    cachedPayload.reset();
 }
 
 juce::String LicenseManager::statusToString (Status status)
@@ -185,4 +193,4 @@ juce::String LicenseManager::statusToString (Status status)
     return "free";
 }
 
-} // namespace osci::licensing
+} // namespace osci

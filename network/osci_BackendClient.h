@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 enum class ReleaseTrack
@@ -77,4 +77,4 @@ private:
     juce::Result postJson (juce::StringRef path, const juce::var& body, juce::var& response) const;
 };
 
-} // namespace osci::licensing
+} // namespace osci

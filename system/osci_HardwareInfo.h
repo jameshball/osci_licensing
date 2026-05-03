@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 class HardwareInfo final
@@ -14,4 +14,4 @@ private:
     HardwareInfo() = delete;
 };
 
-} // namespace osci::licensing
+} // namespace osci

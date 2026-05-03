@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 class LicenseManager
@@ -18,7 +18,7 @@ public:
     {
         juce::String productSlug = "osci-render";
         BackendClientConfig backend;
-        juce::File storageDirectory;
+        juce::PropertiesFile::Options settingsOptions = osci::SettingsStore::optionsForSharedLicensing();
         juce::RelativeTime offlineGrace = juce::RelativeTime::days (14.0);
     };
 
@@ -40,11 +40,13 @@ public:
     std::optional<LicenseTokenPayload> getPayload() const;
     juce::String getCachedToken() const;
 
-    juce::File getTokenFile() const;
+    juce::String getTokenSettingsKey() const;
+    juce::File getSettingsFile() const;
 
 private:
     Config config;
     BackendClient backend;
+    mutable osci::SettingsStore settings;
 
     mutable juce::SpinLock stateLock;
     Status currentStatus = Status::Free;
@@ -52,7 +54,8 @@ private:
     std::optional<LicenseTokenPayload> cachedPayload;
 
     void setStateFromValidation (const LicenseTokenValidation& validation, juce::String token);
+    void clearCachedState();
     static juce::String statusToString (Status status);
 };
 
-} // namespace osci::licensing
+} // namespace osci

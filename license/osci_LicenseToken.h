@@ -3,7 +3,7 @@
 #include <functional>
 #include <optional>
 
-namespace osci::licensing
+namespace osci
 {
 
 struct LicenseTokenPayload
@@ -68,4 +68,4 @@ private:
     LicenseToken() = delete;
 };
 
-} // namespace osci::licensing
+} // namespace osci

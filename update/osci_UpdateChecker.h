@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 class UpdateChecker
@@ -20,4 +20,4 @@ private:
     juce::Result lastResult = juce::Result::ok();
 };
 
-} // namespace osci::licensing
+} // namespace osci

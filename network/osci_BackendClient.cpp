@@ -1,4 +1,4 @@
-namespace osci::licensing
+namespace osci
 {
 #ifndef OSCI_LICENSING_ENABLE_API_LOGGING
 #define OSCI_LICENSING_ENABLE_API_LOGGING 1
@@ -197,8 +197,10 @@ juce::Result BackendClient::activateLicense (juce::StringRef licenseKey,
         setProperty (request, "product_hint", juce::String (productHint));
 
     juce::var body;
-    if (auto result = postJson ("/api/license/activate", request, body); result.failed())
-        return result;
+    const auto postResult = postJson ("/api/license/activate", request, body);
+    if (postResult.failed()) {
+        return postResult;
+    }
 
     auto* object = body.getDynamicObject();
     if (object == nullptr || ! static_cast<bool> (object->getProperty ("success")))
@@ -233,8 +235,10 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
     params.set ("current", query.currentVersion);
 
     juce::var body;
-    if (auto result = getJson ("/api/version/latest", params, body); result.failed())
-        return result;
+    const auto fetchResult = getJson ("/api/version/latest", params, body);
+    if (fetchResult.failed()) {
+        return fetchResult;
+    }
 
     auto* object = body.getDynamicObject();
     if (object == nullptr || ! static_cast<bool> (object->getProperty ("success")))
@@ -296,8 +300,10 @@ juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
         setProperty (request, "license_token", juce::String (licenseToken));
 
     juce::var body;
-    if (auto result = postJson ("/api/version/download-url", request, body); result.failed())
-        return result;
+    const auto postResult = postJson ("/api/version/download-url", request, body);
+    if (postResult.failed()) {
+        return postResult;
+    }
 
     auto* object = body.getDynamicObject();
     if (object == nullptr)
@@ -413,4 +419,4 @@ juce::Result BackendClient::postJson (juce::StringRef path,
     return juce::Result::ok();
 }
 
-} // namespace osci::licensing
+} // namespace osci

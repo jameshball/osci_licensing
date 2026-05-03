@@ -1,4 +1,4 @@
-namespace osci::licensing
+namespace osci
 {
 
 UpdateChecker::UpdateChecker (BackendClient client)
@@ -31,4 +31,4 @@ juce::Result UpdateChecker::getLastResult() const
     return lastResult;
 }
 
-} // namespace osci::licensing
+} // namespace osci

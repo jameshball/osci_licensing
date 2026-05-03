@@ -1,4 +1,4 @@
-namespace osci::licensing
+namespace osci
 {
 
 juce::String HardwareInfo::getCurrentPlatform()
@@ -34,4 +34,4 @@ juce::File HardwareInfo::getDefaultStorageDirectory (juce::StringRef productSlug
         .getChildFile (juce::String (productSlug));
 }
 
-} // namespace osci::licensing
+} // namespace osci

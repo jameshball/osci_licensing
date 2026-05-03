@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 class Downloader
@@ -31,4 +31,4 @@ private:
     juce::File targetFileFor (const VersionInfo& version) const;
 };
 
-} // namespace osci::licensing
+} // namespace osci

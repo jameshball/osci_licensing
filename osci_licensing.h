@@ -15,7 +15,7 @@
   license:           GPLv3
   minimumCppStandard: 20
 
-  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography
+  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography, osci_render_core
 
  END_JUCE_MODULE_DECLARATION
 
@@ -25,11 +25,15 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <juce_events/juce_events.h>
 #include <juce_cryptography/juce_cryptography.h>
+#include <osci_render_core/osci_render_core.h>
 
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
+#include "state/osci_UpdateSettings.h"
 #include "license/osci_LicenseManager.h"
 #include "system/osci_HardwareInfo.h"
+#include "system/osci_DawProcessDetector.h"
 #include "update/osci_UpdateChecker.h"
 #include "update/osci_Downloader.h"
+#include "update/osci_PendingInstall.h"
 #include "update/osci_InstallerLauncher.h"

@@ -1,4 +1,4 @@
-namespace osci::licensing
+namespace osci
 {
 
 Downloader::Downloader()
@@ -24,8 +24,10 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         return juce::Result::fail ("Release signature does not verify");
 
     juce::String downloadUrl;
-    if (auto result = backend.getDownloadUrl (version, licenseToken, downloadUrl); result.failed())
-        return result;
+    const auto downloadUrlResult = backend.getDownloadUrl (version, licenseToken, downloadUrl);
+    if (downloadUrlResult.failed()) {
+        return downloadUrlResult;
+    }
 
     // Defense in depth: only follow https URLs. Integrity is already enforced
     // by SHA-256 + ed25519 verification, but reject obviously wrong schemes
@@ -115,4 +117,4 @@ juce::File Downloader::targetFileFor (const VersionInfo& version) const
     return config.downloadDirectory.getChildFile (filename.replaceCharacter ('/', '-'));
 }
 
-} // namespace osci::licensing
+} // namespace osci

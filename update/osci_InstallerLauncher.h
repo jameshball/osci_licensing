@@ -1,6 +1,6 @@
 #pragma once
 
-namespace osci::licensing
+namespace osci
 {
 
 class InstallerLauncher final
@@ -12,4 +12,4 @@ private:
     InstallerLauncher() = delete;
 };
 
-} // namespace osci::licensing
+} // namespace osci

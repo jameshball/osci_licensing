@@ -8,7 +8,7 @@
 
 #include "../third_party/monocypher/monocypher-ed25519.h"
 
-namespace osci::licensing
+namespace osci
 {
 namespace
 {
@@ -270,4 +270,4 @@ void LicenseToken::setPublicKeysForTesting (juce::String backendPublicKeyBase64,
     releasePublicKeyOverride = std::move (releasePublicKeyBase64);
 }
 
-} // namespace osci::licensing
+} // namespace osci
