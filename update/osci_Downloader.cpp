@@ -12,11 +12,11 @@ Downloader::Downloader (Config configToUse) : config (std::move (configToUse)), 
 juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
                                             juce::StringRef licenseToken,
                                             Progress progress) {
-    if (! LicenseToken::canVerifyReleaseSignatures()) {
+    if (!LicenseToken::canVerifyReleaseSignatures()) {
         return juce::Result::fail ("Release signature verifier is not configured");
     }
 
-    if (! LicenseToken::verifyReleaseSignature (version.semver, version.platform, version.sha256, version.ed25519Signature)) {
+    if (!LicenseToken::verifyReleaseSignature (version.semver, version.platform, version.sha256, version.ed25519Signature)) {
         return juce::Result::fail ("Release signature does not verify");
     }
 
@@ -30,11 +30,11 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
     // by SHA-256 + ed25519 verification, but reject obviously wrong schemes
     // (file://, http://) up front so a misconfigured or compromised backend
     // cannot redirect the client to internal/local resources.
-    if (! downloadUrl.startsWithIgnoreCase ("https://")) {
+    if (!downloadUrl.startsWithIgnoreCase ("https://")) {
         return juce::Result::fail ("Download URL must use https");
     }
 
-    if (! config.downloadDirectory.createDirectory()) {
+    if (!config.downloadDirectory.createDirectory()) {
         return juce::Result::fail ("Could not create download directory");
     }
 
@@ -56,7 +56,7 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
     }
 
     juce::FileOutputStream output (target);
-    if (! output.openedOk())
+    if (!output.openedOk())
         return juce::Result::fail ("Could not write download file");
 
     constexpr int bufferSize = 64 * 1024;
@@ -81,7 +81,7 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
             break;
         }
 
-        if (! output.write (buffer.get(), static_cast<size_t> (bytesRead))) {
+        if (!output.write (buffer.get(), static_cast<size_t> (bytesRead))) {
             return juce::Result::fail ("Could not write download file");
         }
 
@@ -120,6 +120,11 @@ juce::File Downloader::getDownloadedFile() const {
 }
 
 juce::File Downloader::targetFileFor (const VersionInfo& version) const {
+    if (version.artifactKind == "binary") {
+        const auto filename = version.product + "-" + version.semver + "-" + version.platform;
+        return config.downloadDirectory.getChildFile (filename.replaceCharacter ('/', '-'));
+    }
+
     const auto extension = version.artifactKind.isNotEmpty() ? version.artifactKind : "bin";
     const auto filename = version.product + "-" + version.semver + "-" + version.platform + "." + extension;
     return config.downloadDirectory.getChildFile (filename.replaceCharacter ('/', '-'));
