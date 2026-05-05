@@ -31,7 +31,12 @@ namespace {
         { "vst3plugintesthost", "VST3 plugin test host" },
     };
 
-    juce::String normaliseProcessName (juce::String text) {
+    bool isIgnoredProcessPath(const juce::String& processName) {
+        const auto lower = processName.toLowerCase();
+        return lower.contains(".appex/");
+    }
+
+    juce::String normaliseProcessName(juce::String text) {
         text = text.trim().unquoted();
 
         if (text.containsChar ('/') || text.containsChar ('\\')) {
@@ -51,6 +56,66 @@ namespace {
         }
 
         return result;
+    }
+
+    bool isKnownHostSuffix(const juce::String& suffix) {
+        if (suffix.isEmpty()) {
+            return true;
+        }
+
+        if (juce::CharacterFunctions::isDigit(suffix[0])) {
+            return true;
+        }
+
+        static constexpr const char* allowedSuffixes[] = {
+            "x",
+            "suite",
+            "intro",
+            "lite",
+            "standard",
+            "trial",
+            "beta",
+            "artist",
+            "elements",
+            "pro",
+            "le",
+            "ai",
+            "arm64",
+            "x64",
+            "64",
+        };
+
+        for (const auto* allowedSuffix : allowedSuffixes) {
+            const juce::String allowed(allowedSuffix);
+            if (suffix == allowed) {
+                return true;
+            }
+
+            if (suffix.startsWith(allowed)
+                && suffix.length() > allowed.length()
+                && juce::CharacterFunctions::isDigit(suffix[allowed.length()])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool matchesKnownProcess(const juce::String& normalised, const KnownProcess& known) {
+        const juce::String candidate(known.normalisedName);
+        if (known.exact) {
+            return normalised == candidate;
+        }
+
+        if (normalised == candidate) {
+            return true;
+        }
+
+        if (!normalised.startsWith(candidate)) {
+            return false;
+        }
+
+        return isKnownHostSuffix(normalised.substring(candidate.length()));
     }
 
     juce::StringArray parseProcessList (const juce::String& output) {
@@ -150,18 +215,20 @@ void DawProcessDetector::scanAsync (ScanCallback callback) {
 }
 
 bool DawProcessDetector::isKnownDawProcessName (juce::StringRef processName, juce::String* matchedDisplayName) {
-    const auto normalised = normaliseProcessName (juce::String (processName));
-    if (normalised.isEmpty()) {
-        return false;
-    }
-
-    for (const auto& known : knownProcesses) {
-        const juce::String candidate (known.normalisedName);
-        const auto matches = known.exact ? normalised == candidate
-                                         : normalised.contains (candidate);
-        if (! matches) {
-            continue;
+        const juce::String rawProcessName(processName);
+        if (isIgnoredProcessPath(rawProcessName)) {
+            return false;
         }
+
+        const auto normalised = normaliseProcessName(rawProcessName);
+        if (normalised.isEmpty()) {
+            return false;
+        }
+
+        for (const auto& known : knownProcesses) {
+            if (!matchesKnownProcess(normalised, known)) {
+                continue;
+            }
 
         if (matchedDisplayName != nullptr) {
             *matchedDisplayName = known.displayName;
