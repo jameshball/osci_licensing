@@ -32,15 +32,18 @@ namespace {
     };
 
     bool isIgnoredProcessPath(const juce::String& processName) {
-        const auto lower = processName.toLowerCase();
+        auto lower = processName.toLowerCase();
+        lower = lower.replaceCharacter('\\', '/');
         return lower.contains(".appex/");
     }
 
     juce::String normaliseProcessName(juce::String text) {
         text = text.trim().unquoted();
+        text = text.replaceCharacter('\\', '/');
 
-        if (text.containsChar ('/') || text.containsChar ('\\')) {
-            text = juce::File::createFileWithoutCheckingPath (text).getFileName();
+        const auto lastSeparator = text.lastIndexOfChar('/');
+        if (lastSeparator >= 0) {
+            text = text.substring(lastSeparator + 1);
         }
 
         text = text.upToFirstOccurrenceOf (".exe", false, true);
