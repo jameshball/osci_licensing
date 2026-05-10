@@ -60,21 +60,21 @@ namespace
             return std::nullopt;
 
         LicenseTokenPayload payload;
-        payload.version = static_cast<int> (object->getProperty ("v"));
-        payload.keyId = static_cast<int> (object->getProperty ("kid"));
-        payload.licenseKey = object->getProperty ("lk").toString();
-        payload.productId = object->getProperty ("pid").toString();
-        payload.provider = object->getProperty ("prv").toString();
-        payload.email = object->getProperty ("em").toString();
-        payload.tier = object->getProperty ("tr").toString();
+        payload.version = static_cast<int> (object->getProperty ("token_format_version"));
+        payload.keyId = static_cast<int> (object->getProperty ("key_id"));
+        payload.licenseKey = object->getProperty ("license_key").toString();
+        payload.providerProductId = object->getProperty ("provider_product_id").toString();
+        payload.provider = object->getProperty ("provider").toString();
+        payload.email = object->getProperty ("email").toString();
+        payload.tier = object->getProperty ("tier").toString();
 
-        const auto issuedAtSeconds = static_cast<juce::int64> (object->getProperty ("iat"));
-        const auto expiresAtSeconds = static_cast<juce::int64> (object->getProperty ("exp"));
+        const auto issuedAtSeconds = static_cast<juce::int64> (object->getProperty ("issued_at"));
+        const auto expiresAtSeconds = static_cast<juce::int64> (object->getProperty ("expires_at"));
         payload.issuedAt = juce::Time (issuedAtSeconds * 1000);
         payload.expiresAt = juce::Time (expiresAtSeconds * 1000);
 
         if (payload.version <= 0 || payload.keyId <= 0 || payload.licenseKey.isEmpty()
-            || payload.productId.isEmpty() || payload.tier.isEmpty() || expiresAtSeconds <= 0)
+            || payload.providerProductId.isEmpty() || payload.tier.isEmpty() || expiresAtSeconds <= 0)
             return std::nullopt;
 
         return payload;

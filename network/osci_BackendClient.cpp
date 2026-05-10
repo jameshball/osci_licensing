@@ -110,8 +110,7 @@ namespace
             || lower == "license_token"
             || lower == "token"
             || lower == "url"
-            || lower == "email"
-            || lower == "em";
+            || lower == "email";
     }
 
     juce::var redactedJsonValue (const juce::var& value)
@@ -230,7 +229,7 @@ juce::Result BackendClient::activateLicense (juce::StringRef licenseKey,
     response.token = getString (*object, "token");
     response.issuedAtSeconds = getInt64 (*object, "issued_at");
     response.expiresAtSeconds = getInt64 (*object, "expires_at");
-    response.keyId = static_cast<int> (object->getProperty ("kid"));
+    response.keyId = static_cast<int> (object->getProperty ("key_id"));
 
     if (auto* purchase = object->getProperty ("purchase").getDynamicObject())
     {

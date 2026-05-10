@@ -11,7 +11,7 @@ struct LicenseTokenPayload
     int version = 0;
     int keyId = 0;
     juce::String licenseKey;
-    juce::String productId;
+    juce::String providerProductId;
     juce::String provider;
     juce::String email;
     juce::String tier;

@@ -134,7 +134,7 @@ juce::ValueTree LicenseManager::getStateForUi() const
         state.setProperty ("email", cachedPayload->email, nullptr);
         state.setProperty ("tier", cachedPayload->tier, nullptr);
         state.setProperty ("license_key", cachedPayload->licenseKey, nullptr);
-        state.setProperty ("product_id", cachedPayload->productId, nullptr);
+        state.setProperty ("provider_product_id", cachedPayload->providerProductId, nullptr);
         state.setProperty ("expires_at", cachedPayload->expiresAt.toISO8601 (true), nullptr);
     }
 
