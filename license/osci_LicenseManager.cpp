@@ -28,9 +28,14 @@ LicenseManager::Status LicenseManager::status() const noexcept
 bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcept
 {
     juce::ignoreUnused (featureGroup);
+
+#if OSCI_DISABLE_LICENSE_CHECK
+    return true;
+#else
     const juce::SpinLock::ScopedLockType lock (stateLock);
     return (currentStatus == Status::PremiumValid || currentStatus == Status::PremiumCachedToken)
            && cachedPayload.has_value() && cachedPayload->isPremium();
+#endif
 }
 
 juce::Result LicenseManager::loadCachedToken()
@@ -124,8 +129,13 @@ void LicenseManager::deactivate()
 
 juce::ValueTree LicenseManager::getStateForUi() const
 {
-    const juce::SpinLock::ScopedLockType lock (stateLock);
     juce::ValueTree state ("license");
+#if OSCI_DISABLE_LICENSE_CHECK
+    state.setProperty ("status", "premium_valid", nullptr);
+    state.setProperty ("premium", true, nullptr);
+    return state;
+#else
+    const juce::SpinLock::ScopedLockType lock (stateLock);
     state.setProperty ("status", statusToString (currentStatus), nullptr);
     state.setProperty ("premium", currentStatus == Status::PremiumValid || currentStatus == Status::PremiumCachedToken, nullptr);
 
@@ -139,6 +149,7 @@ juce::ValueTree LicenseManager::getStateForUi() const
     }
 
     return state;
+#endif
 }
 
 std::optional<LicenseTokenPayload> LicenseManager::getPayload() const

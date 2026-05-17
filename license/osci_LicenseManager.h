@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef OSCI_DISABLE_LICENSE_CHECK
+#define OSCI_DISABLE_LICENSE_CHECK 0
+#endif
+
 namespace osci
 {
 
