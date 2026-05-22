@@ -12,7 +12,7 @@ enum class ReleaseTrack
 
 struct BackendClientConfig
 {
-    juce::String apiBaseUrl = "https://api.osci-render.com";
+    juce::String apiBaseUrl = "https://jameshball.releaseplane.org";
     int timeoutMs = 15000;
 };
 
