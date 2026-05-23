@@ -35,6 +35,11 @@ bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcep
 
 juce::Result LicenseManager::loadCachedToken()
 {
+    if (config.allowAutomationLicenseBypass) {
+        setAutomationBypassState();
+        return juce::Result::ok();
+    }
+
     settings.reload();
 
     const auto token = settings.getString (getTokenSettingsKey()).trim();
@@ -161,6 +166,22 @@ juce::String LicenseManager::getTokenSettingsKey() const
 juce::File LicenseManager::getSettingsFile() const
 {
     return settings.getFile();
+}
+
+void LicenseManager::setAutomationBypassState() {
+    LicenseTokenPayload payload;
+    payload.version = 1;
+    payload.licenseKey = "automation-bypass";
+    payload.provider = "local";
+    payload.email = "Jucewright automation";
+    payload.tier = "premium";
+    payload.issuedAt = juce::Time::getCurrentTime();
+    payload.expiresAt = payload.issuedAt + juce::RelativeTime::days (1.0);
+
+    const juce::SpinLock::ScopedLockType lock (stateLock);
+    cachedToken.clear();
+    cachedPayload = payload;
+    currentStatus = Status::PremiumValid;
 }
 
 void LicenseManager::setStateFromValidation (const LicenseTokenValidation& validation, juce::String token)

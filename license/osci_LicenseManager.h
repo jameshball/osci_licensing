@@ -20,6 +20,7 @@ public:
         BackendClientConfig backend;
         juce::PropertiesFile::Options settingsOptions = osci::SettingsStore::optionsForSharedLicensing();
         juce::RelativeTime offlineGrace = juce::RelativeTime::days (14.0);
+        bool allowAutomationLicenseBypass = false;
     };
 
     LicenseManager();
@@ -53,6 +54,7 @@ private:
     juce::String cachedToken;
     std::optional<LicenseTokenPayload> cachedPayload;
 
+    void setAutomationBypassState();
     void setStateFromValidation (const LicenseTokenValidation& validation, juce::String token);
     void clearCachedState();
     static juce::String statusToString (Status status);
