@@ -35,7 +35,7 @@ bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcep
 
 juce::Result LicenseManager::loadCachedToken()
 {
-    if (config.allowAutomationLicenseBypass) {
+    if (config.allowAutomationLicenseBypass || OSCI_DISABLE_LICENSE_CHECK) {
         setAutomationBypassState();
         return juce::Result::ok();
     }
