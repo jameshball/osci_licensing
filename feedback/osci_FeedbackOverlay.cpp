@@ -80,8 +80,8 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     setReserveHeaderSpace(true);
 
     includeAutomaticScreenshot = config.automaticScreenshotPreview.isValid();
-    includeDiagnosticLog = config.context.log.isNotEmpty();
-    includeProjectSnapshot = !config.projectSnapshot.data.isEmpty() || config.projectSnapshotProvider != nullptr;
+    includeDiagnosticLog = config.context.log.isNotEmpty() || config.submissionProvider != nullptr;
+    includeProjectSnapshot = !config.projectSnapshot.data.isEmpty() || config.submissionProvider != nullptr;
 
     auto configureKindButton = [](juce::TextButton& button, juce::String componentID) {
         button.setComponentID(std::move(componentID));
@@ -174,7 +174,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
     settingsButton->setComponentID("feedbackSettingsButton");
     settingsButton->setCircularBackground(true, 10);
-    settingsButton->setRotateOnHover(true, juce::MathConstants<float>::halfPi);
+    settingsButton->setRotateOnHover(true, juce::MathConstants<float>::pi / 3.0f);
     settingsButton->setHoverColour(Colours::text());
     settingsButton->onClick = [this] { openSettings(); };
 
@@ -286,6 +286,20 @@ juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
 }
 
 void FeedbackOverlay::run() {
+    auto projectSnapshot = config.projectSnapshot;
+    if (config.submissionProvider != nullptr) {
+        {
+            const juce::SpinLock::ScopedLockType lock(resultLock);
+            backgroundStatus = "Preparing report details...";
+        }
+        triggerAsyncUpdate();
+        config.submissionProvider(pendingRequest, projectSnapshot, includeProjectSnapshot);
+    }
+    if (!includeDiagnosticLog) {
+        pendingRequest.log.clear();
+        pendingRequest.logTruncated = false;
+    }
+
     if (includeAutomaticScreenshot && config.automaticScreenshotPreview.isValid()) {
         auto automaticScreenshot = config.automaticScreenshot;
         if (automaticScreenshot.data.isEmpty()) {
@@ -302,15 +316,6 @@ void FeedbackOverlay::run() {
     }
 
     if (includeProjectSnapshot) {
-        auto projectSnapshot = config.projectSnapshot;
-        if (projectSnapshot.data.isEmpty() && config.projectSnapshotProvider != nullptr) {
-            {
-                const juce::SpinLock::ScopedLockType lock(resultLock);
-                backgroundStatus = "Preparing current project...";
-            }
-            triggerAsyncUpdate();
-            config.projectSnapshotProvider(projectSnapshot.data);
-        }
         if (!projectSnapshot.data.isEmpty()) {
             pendingRequest.attachments.push_back(std::move(projectSnapshot));
         }
@@ -388,11 +393,6 @@ void FeedbackOverlay::startSubmission() {
     pendingRequest.description = descriptionEditor.getText().trim();
     pendingRequest.contactEmail = emailEditor.getText().trim();
     pendingRequest.attachments = userScreenshots;
-    if (!includeDiagnosticLog) {
-        pendingRequest.log.clear();
-        pendingRequest.logTruncated = false;
-    }
-
     submissionActive = true;
     submissionFinished.store(false, std::memory_order_release);
     cancellationRequested.store(false, std::memory_order_relaxed);
@@ -661,9 +661,9 @@ void FeedbackOverlay::openSettings() {
         std::make_unique<FeedbackSettingsOverlay>(
             config.closeButtonSvg,
             includeDiagnosticLog,
-            config.context.log.isNotEmpty(),
+            config.context.log.isNotEmpty() || config.submissionProvider != nullptr,
             includeProjectSnapshot,
-            !config.projectSnapshot.data.isEmpty() || config.projectSnapshotProvider != nullptr,
+            !config.projectSnapshot.data.isEmpty() || config.submissionProvider != nullptr,
             [safeThis](bool includeLog, bool includeProject) {
                 if (safeThis != nullptr) {
                     safeThis->includeDiagnosticLog = includeLog;
