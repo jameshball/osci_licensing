@@ -2,6 +2,11 @@
 
 namespace osci {
 
+class FeedbackSectionCard final : public juce::Component {
+public:
+    void paint(juce::Graphics& g) override;
+};
+
 struct FeedbackOverlayConfig {
     juce::String closeButtonSvg;
     juce::String productDisplayName;
@@ -27,16 +32,19 @@ private:
     void run() override;
     void handleAsyncUpdate() override;
     void configureEditor(juce::TextEditor& editor, juce::String name, bool multiline);
-    void configureToggle(jux::SwitchButton& toggle, juce::Label& label, juce::String name, juce::String detail, bool enabled);
+    void configureToggle(jux::SwitchButton& toggle, juce::Label& label, juce::Label& detailLabel, juce::String name, juce::String detail, bool enabled);
     void startSubmission();
     bool validateForm();
     void addUserFiles(const std::vector<juce::File>& files);
     void chooseUserFiles();
     void updateAttachmentSummary();
+    void rebuildUserScreenshotPreviews();
     void updateToggleAvailability();
     void setFormEnabled(bool enabled);
     void showInlineError(juce::String message);
     void showSuccess();
+    void openImagePreview(const juce::Image& image, juce::String title);
+    int getFormContentHeight() const;
 
     FeedbackOverlayConfig config;
     FeedbackClient client;
@@ -44,9 +52,16 @@ private:
     FeedbackResponse response;
     juce::Result submissionResult = juce::Result::ok();
     std::vector<FeedbackAttachmentData> userScreenshots;
+    std::vector<juce::Image> userScreenshotImages;
+    std::vector<std::unique_ptr<ImagePreviewComponent>> userScreenshotPreviews;
     std::unique_ptr<juce::FileChooser> chooser;
 
+    FeedbackSectionCard feedbackCard;
+    FeedbackSectionCard attachmentsCard;
+    FeedbackSectionCard diagnosticsCard;
+    FeedbackSectionCard submissionCard;
     juce::Label introLabel;
+    juce::Label feedbackHeading;
     juce::Label kindLabel;
     juce::ComboBox kindBox;
     juce::Label emailLabel;
@@ -59,17 +74,22 @@ private:
     FileDropZoneComponent dropZone;
     juce::Label attachmentSummary;
     juce::TextButton clearAttachmentsButton { "Clear" };
+    juce::Component userPreviewContainer;
     juce::Label diagnosticsHeading;
 
     jux::SwitchButton screenshotToggle { "Include screenshot", false };
     juce::Label screenshotLabel;
-    juce::ImageComponent screenshotPreview;
+    juce::Label screenshotDetailLabel;
+    ImagePreviewComponent screenshotPreview;
     jux::SwitchButton logToggle { "Include diagnostic log", false };
     juce::Label logLabel;
+    juce::Label logDetailLabel;
     jux::SwitchButton projectToggle { "Include current project", false };
     juce::Label projectLabel;
+    juce::Label projectDetailLabel;
     jux::SwitchButton contextToggle { "Include technical details", false };
     juce::Label contextLabel;
+    juce::Label contextDetailLabel;
     juce::Label privacyLabel;
 
     juce::Label errorLabel;
