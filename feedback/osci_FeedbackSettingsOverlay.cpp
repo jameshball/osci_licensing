@@ -41,16 +41,16 @@ FeedbackSettingsOverlay::FeedbackSettingsOverlay(juce::String closeButtonSvg,
                     includeProject,
                     projectIsAvailable);
 
-    configureSettingsLabel(alwaysIncludedHeading, "Always included", 15.0f, true);
+    configureSettingsLabel(alwaysIncludedHeading, "Always included", 16.0f, true);
     configureSettingsLabel(alwaysIncludedLabel,
                            "Product and app version, operating system and architecture, locale, host and plugin format, "
                            "display size and scale, plus audio and renderer configuration.",
-                           12.5f);
+                           13.5f);
     alwaysIncludedLabel.setColour(juce::Label::textColourId, Colours::textMuted());
 
     configureSettingsLabel(privacyLabel,
                            "Your report and private attachments are only available to the support team.",
-                           12.0f);
+                           13.0f);
     privacyLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
 
     for (auto* component : std::initializer_list<juce::Component*> {
@@ -75,37 +75,36 @@ void FeedbackSettingsOverlay::SettingsCard::paint(juce::Graphics& g) {
 
 void FeedbackSettingsOverlay::resizeContent(juce::Rectangle<int> contentArea) {
     card.setBounds(contentArea);
-    contentArea.reduce(16, 12);
+    contentArea.reduce(12, 8);
 
     auto layoutToggle = [](juce::Rectangle<int> row,
                            jux::SwitchButton& toggle,
                            juce::Label& label,
                            juce::Label& detailLabel) {
         toggle.setBounds(row.removeFromLeft(44).withSizeKeepingCentre(44, 32));
-        row.removeFromLeft(14);
-        auto textArea = row.withTrimmedTop(4).withTrimmedBottom(4);
-        label.setBounds(textArea.removeFromTop(19));
+        row.removeFromLeft(6);
+        auto textArea = row.withTrimmedTop(2).withTrimmedBottom(2);
+        label.setBounds(textArea.removeFromTop(20));
         detailLabel.setBounds(textArea);
     };
 
     if (logIsAvailable) {
-        layoutToggle(contentArea.removeFromTop(46), logToggle, logLabel, logDetailLabel);
+        layoutToggle(contentArea.removeFromTop(42), logToggle, logLabel, logDetailLabel);
     }
     if (projectIsAvailable) {
-        layoutToggle(contentArea.removeFromTop(46), projectToggle, projectLabel, projectDetailLabel);
+        layoutToggle(contentArea.removeFromTop(42), projectToggle, projectLabel, projectDetailLabel);
     }
 
-    contentArea.removeFromTop(10);
+    contentArea.removeFromTop(5);
     alwaysIncludedHeading.setBounds(contentArea.removeFromTop(20));
-    contentArea.removeFromTop(2);
-    alwaysIncludedLabel.setBounds(contentArea.removeFromTop(36));
-    contentArea.removeFromTop(8);
+    alwaysIncludedLabel.setBounds(contentArea.removeFromTop(34));
+    contentArea.removeFromTop(4);
     privacyLabel.setBounds(contentArea.removeFromTop(18));
 }
 
 juce::Point<int> FeedbackSettingsOverlay::getPreferredPanelSize() const {
     const auto availableRows = static_cast<int>(logIsAvailable) + static_cast<int>(projectIsAvailable);
-    return getPanelSizeForContentSize({ 520, 118 + availableRows * 46 });
+    return getPanelSizeForContentSize({ 470, 97 + availableRows * 42 });
 }
 
 void FeedbackSettingsOverlay::notifySettingsChanged() {
@@ -125,8 +124,8 @@ void FeedbackSettingsOverlay::configureToggle(jux::SwitchButton& toggle,
     toggle.setComponentID(name.replaceCharacter(' ', '_').toLowerCase());
     toggle.setToggleState(enabled && available, juce::dontSendNotification);
     toggle.setVisible(available);
-    configureSettingsLabel(label, name, 14.0f, true);
-    configureSettingsLabel(detailLabel, std::move(detail), 12.5f);
+    configureSettingsLabel(label, name, 15.0f, true);
+    configureSettingsLabel(detailLabel, std::move(detail), 13.5f);
     detailLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
     label.setVisible(available);
     detailLabel.setVisible(available);

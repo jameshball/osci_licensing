@@ -22,6 +22,21 @@ juce::String safePngFilename(const juce::File& file) {
     }
     return name.substring(0, 220) + ".png";
 }
+
+bool encodePng(const juce::Image& image, juce::MemoryBlock& destination) {
+    if (!image.isValid()) {
+        return false;
+    }
+
+    juce::PNGImageFormat png;
+    juce::MemoryOutputStream output(destination, false);
+    if (!png.writeImageToStream(image, output)) {
+        destination.reset();
+        return false;
+    }
+
+    return true;
+}
 } // namespace
 
 void FeedbackSectionCard::paint(juce::Graphics& g) {
@@ -42,7 +57,7 @@ void FeedbackFieldLabel::setField(juce::String text, bool required) {
 }
 
 void FeedbackFieldLabel::paint(juce::Graphics& g) {
-    const juce::Font font(juce::FontOptions(13.0f, juce::Font::bold));
+    const juce::Font font(juce::FontOptions(14.0f, juce::Font::bold));
     g.setFont(font);
     g.setColour(Colours::text());
     const auto bounds = getLocalBounds();
@@ -64,9 +79,9 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     setOverlayTitle("Send Feedback");
     setReserveHeaderSpace(true);
 
-    includeAutomaticScreenshot = !config.automaticScreenshot.data.isEmpty() && config.automaticScreenshotPreview.isValid();
+    includeAutomaticScreenshot = config.automaticScreenshotPreview.isValid();
     includeDiagnosticLog = config.context.log.isNotEmpty();
-    includeProjectSnapshot = !config.projectSnapshot.data.isEmpty();
+    includeProjectSnapshot = !config.projectSnapshot.data.isEmpty() || config.projectSnapshotProvider != nullptr;
 
     kindLabel.setField("Type", true);
     auto configureKindButton = [](juce::TextButton& button, juce::String componentID) {
@@ -132,7 +147,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
         showInlineError("Only PNG and JPEG screenshots can be attached.");
     };
 
-    configureFeedbackLabel(attachmentSummary, {}, 12.5f);
+    configureFeedbackLabel(attachmentSummary, {}, 13.5f);
     attachmentSummary.setColour(juce::Label::textColourId, Colours::textSubtle());
 
     screenshotPreview.setComponentID("automaticScreenshotPreview");
@@ -145,7 +160,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
         updateAttachmentSummary();
     }, "removeAutomaticScreenshot");
 
-    configureFeedbackLabel(errorLabel, {}, 12.5f, true);
+    configureFeedbackLabel(errorLabel, {}, 13.5f, true);
     errorLabel.setColour(juce::Label::textColourId, Colours::danger());
     errorLabel.setJustificationType(juce::Justification::centredLeft);
     errorLabel.setVisible(false);
@@ -153,7 +168,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     progressBar.setName("Feedback upload progress");
     progressBar.setComponentID("feedbackProgress");
     progressBar.setVisible(false);
-    configureFeedbackLabel(progressLabel, {}, 12.5f);
+    configureFeedbackLabel(progressLabel, {}, 13.5f);
     progressLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
     progressLabel.setVisible(false);
 
@@ -201,8 +216,8 @@ FeedbackOverlay::~FeedbackOverlay() {
 
 void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
     if (success) {
-        submitButton.setBounds(contentArea.removeFromBottom(44).withSizeKeepingCentre(170, 40));
-        contentArea.removeFromBottom(16);
+        submitButton.setBounds(contentArea.removeFromBottom(40).withSizeKeepingCentre(160, 40));
+        contentArea.removeFromBottom(8);
         introLabel.setBounds(contentArea);
         return;
     }
@@ -269,10 +284,40 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
 }
 
 juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
-    return getPanelSizeForContentSize(success ? juce::Point<int> { 600, 330 } : juce::Point<int> { 760, getFormContentHeight() });
+    return getPanelSizeForContentSize(success ? juce::Point<int> { 520, 210 } : juce::Point<int> { 760, getFormContentHeight() });
 }
 
 void FeedbackOverlay::run() {
+    if (includeAutomaticScreenshot && config.automaticScreenshotPreview.isValid()) {
+        auto automaticScreenshot = config.automaticScreenshot;
+        if (automaticScreenshot.data.isEmpty()) {
+            {
+                const juce::SpinLock::ScopedLockType lock(resultLock);
+                backgroundStatus = "Preparing app screenshot...";
+            }
+            triggerAsyncUpdate();
+            encodePng(config.automaticScreenshotPreview, automaticScreenshot.data);
+        }
+        if (!automaticScreenshot.data.isEmpty()) {
+            pendingRequest.attachments.insert(pendingRequest.attachments.begin(), std::move(automaticScreenshot));
+        }
+    }
+
+    if (includeProjectSnapshot) {
+        auto projectSnapshot = config.projectSnapshot;
+        if (projectSnapshot.data.isEmpty() && config.projectSnapshotProvider != nullptr) {
+            {
+                const juce::SpinLock::ScopedLockType lock(resultLock);
+                backgroundStatus = "Preparing current project...";
+            }
+            triggerAsyncUpdate();
+            config.projectSnapshotProvider(projectSnapshot.data);
+        }
+        if (!projectSnapshot.data.isEmpty()) {
+            pendingRequest.attachments.push_back(std::move(projectSnapshot));
+        }
+    }
+
     FeedbackResponse newResponse;
     const auto result = client.submit(
         pendingRequest,
@@ -329,7 +374,7 @@ void FeedbackOverlay::configureEditor(TextEditor& editor, juce::String name, boo
     editor.setMultiLine(multiline, multiline);
     editor.setReturnKeyStartsNewLine(multiline);
     editor.setScrollbarsShown(multiline);
-    editor.setFont(juce::Font(juce::FontOptions(14.5f)));
+    editor.setFont(juce::Font(juce::FontOptions(15.5f)));
     editor.setColour(juce::TextEditor::backgroundColourId, Colours::surfaceSunken());
     editor.setColour(juce::TextEditor::outlineColourId, Colours::neutralStroke(0.18f));
     editor.setColour(juce::TextEditor::focusedOutlineColourId, Colours::accentColor());
@@ -345,12 +390,6 @@ void FeedbackOverlay::startSubmission() {
     pendingRequest.description = descriptionEditor.getText().trim();
     pendingRequest.contactEmail = emailEditor.getText().trim();
     pendingRequest.attachments = userScreenshots;
-    if (includeAutomaticScreenshot && !config.automaticScreenshot.data.isEmpty()) {
-        pendingRequest.attachments.insert(pendingRequest.attachments.begin(), config.automaticScreenshot);
-    }
-    if (includeProjectSnapshot && !config.projectSnapshot.data.isEmpty()) {
-        pendingRequest.attachments.push_back(config.projectSnapshot);
-    }
     if (!includeDiagnosticLog) {
         pendingRequest.log.clear();
         pendingRequest.logTruncated = false;
@@ -626,7 +665,7 @@ void FeedbackOverlay::openSettings() {
             includeDiagnosticLog,
             config.context.log.isNotEmpty(),
             includeProjectSnapshot,
-            !config.projectSnapshot.data.isEmpty(),
+            !config.projectSnapshot.data.isEmpty() || config.projectSnapshotProvider != nullptr,
             [safeThis](bool includeLog, bool includeProject) {
                 if (safeThis != nullptr) {
                     safeThis->includeDiagnosticLog = includeLog;

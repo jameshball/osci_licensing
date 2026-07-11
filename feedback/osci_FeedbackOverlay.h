@@ -24,6 +24,7 @@ struct FeedbackOverlayConfig {
     FeedbackAttachmentData automaticScreenshot;
     juce::Image automaticScreenshotPreview;
     FeedbackAttachmentData projectSnapshot;
+    std::function<void(juce::MemoryBlock&)> projectSnapshotProvider;
     BackendClientConfig backend;
 };
 
