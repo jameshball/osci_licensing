@@ -57,13 +57,10 @@ struct FeedbackResponse {
 
 class FeedbackClient final {
 public:
-    using ProgressCallback = std::function<void(float progress, juce::String status)>;
-
     explicit FeedbackClient(BackendClientConfig config = {});
 
     juce::Result submit(const FeedbackRequest& request,
                         FeedbackResponse& response,
-                        ProgressCallback progress = {},
                         const std::atomic<bool>* cancellationRequested = nullptr) const;
 
     static juce::String kindToString(FeedbackKind kind);
@@ -82,18 +79,21 @@ private:
     juce::String endpoint(juce::StringRef path) const;
     juce::Result prepareUploads(const FeedbackRequest& request,
                                 juce::StringRef idempotencyKey,
-                                std::vector<PreparedUpload>& uploads) const;
+                                std::vector<PreparedUpload>& uploads,
+                                const std::atomic<bool>* cancellationRequested) const;
     juce::Result uploadAttachment(const PreparedUpload& upload,
                                   const FeedbackAttachmentData& attachment,
                                   const std::atomic<bool>* cancellationRequested) const;
     juce::Result createFeedback(const FeedbackRequest& request,
                                 const std::vector<PreparedUpload>& uploads,
                                 juce::StringRef idempotencyKey,
-                                FeedbackResponse& response) const;
+                                FeedbackResponse& response,
+                                const std::atomic<bool>* cancellationRequested) const;
     juce::Result postJson(juce::StringRef path,
                           const juce::var& body,
                           juce::StringRef idempotencyKey,
-                          juce::var& response) const;
+                          juce::var& response,
+                          const std::atomic<bool>* cancellationRequested) const;
 };
 
 } // namespace osci

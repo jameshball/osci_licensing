@@ -39,15 +39,6 @@ bool encodePng(const juce::Image& image, juce::MemoryBlock& destination) {
 }
 } // namespace
 
-void FeedbackSectionCard::paint(juce::Graphics& g) {
-    constexpr auto radius = 14.0f;
-    const auto bounds = getLocalBounds().toFloat();
-    g.setColour(Colours::surfaceRaised().withAlpha(0.42f));
-    g.fillRoundedRectangle(bounds, radius);
-    g.setColour(Colours::neutralStroke(0.16f));
-    g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
-}
-
 void FeedbackFieldLabel::setField(juce::String text, bool required) {
     displayText = std::move(text);
     isRequired = required;
@@ -265,11 +256,9 @@ juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
 void FeedbackOverlay::run() {
     auto projectSnapshot = config.projectSnapshot;
     if (config.submissionProvider != nullptr) {
-        config.submissionProvider(pendingRequest, projectSnapshot, includeProjectSnapshot);
-    }
-    if (!includeDiagnosticLog) {
-        pendingRequest.log.clear();
-        pendingRequest.logTruncated = false;
+        config.submissionProvider(pendingRequest,
+                                  projectSnapshot,
+                                  { includeDiagnosticLog, includeProjectSnapshot });
     }
 
     if (includeAutomaticScreenshot && config.automaticScreenshotPreview.isValid()) {
@@ -289,25 +278,16 @@ void FeedbackOverlay::run() {
     }
 
     FeedbackResponse newResponse;
-    const auto result = client.submit(
-        pendingRequest,
-        newResponse,
-        {},
-        &cancellationRequested);
+    const auto result = client.submit(pendingRequest, newResponse, &cancellationRequested);
     {
         const juce::SpinLock::ScopedLockType lock(resultLock);
         submissionResult = result;
         response = std::move(newResponse);
     }
-    submissionFinished.store(true, std::memory_order_release);
     triggerAsyncUpdate();
 }
 
 void FeedbackOverlay::handleAsyncUpdate() {
-    if (!submissionFinished.load(std::memory_order_acquire)) {
-        return;
-    }
-
     submissionActive = false;
     setDismissible(true);
     juce::Result result = juce::Result::ok();
@@ -347,7 +327,6 @@ void FeedbackOverlay::startSubmission() {
     pendingRequest.contactEmail = emailEditor.getText().trim();
     pendingRequest.attachments = userScreenshots;
     submissionActive = true;
-    submissionFinished.store(false, std::memory_order_release);
     cancellationRequested.store(false, std::memory_order_relaxed);
     errorLabel.setVisible(false);
     submitButton.setButtonText("Sending...");
@@ -576,19 +555,7 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 }
 
 void FeedbackOverlay::showSuccess() {
-    auto nextOverlay = std::make_shared<std::unique_ptr<OverlayComponent>>(
-        std::make_unique<FeedbackSuccessOverlay>(config.closeButtonSvg, response.reference));
-    const juce::Component::SafePointer<juce::Component> safeParent(getParentComponent());
-    auto dismissAndContinue = std::move(onDismissRequested);
-    onDismissRequested = [safeParent, nextOverlay, dismissAndContinue = std::move(dismissAndContinue)]() mutable {
-        if (safeParent != nullptr && *nextOverlay != nullptr) {
-            OverlayComponent::show(*safeParent.getComponent(), std::move(*nextOverlay));
-        }
-        if (dismissAndContinue != nullptr) {
-            dismissAndContinue();
-        }
-    };
-    requestDismiss();
+    replaceWith(std::make_unique<FeedbackSuccessOverlay>(config.closeButtonSvg, response.reference));
 }
 
 void FeedbackOverlay::openImagePreview(const juce::Image& image, juce::String title) {
@@ -617,7 +584,7 @@ void FeedbackOverlay::openSettings() {
 }
 
 int FeedbackOverlay::getAttachedScreenshotCount() const {
-    return static_cast<int>(userScreenshotPreviews.size()) + static_cast<int>(includeAutomaticScreenshot);
+    return static_cast<int>(userScreenshots.size()) + static_cast<int>(includeAutomaticScreenshot);
 }
 
 int FeedbackOverlay::getFormContentHeight() const {

@@ -16,11 +16,6 @@ protected:
     juce::Point<int> getPreferredPanelSize() const override;
 
 private:
-    class SettingsCard final : public juce::Component {
-    public:
-        void paint(juce::Graphics& g) override;
-    };
-
     void notifySettingsChanged();
     void configureToggle(jux::SwitchButton& toggle,
                          juce::Label& label,
@@ -30,7 +25,7 @@ private:
                          bool enabled,
                          bool available);
 
-    SettingsCard card;
+    FeedbackCard card;
     jux::SwitchButton logToggle { "Include diagnostic log", false };
     juce::Label logLabel;
     juce::Label logDetailLabel;

@@ -37,6 +37,7 @@
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
 #include "feedback/osci_FeedbackClient.h"
+#include "feedback/osci_FeedbackComponents.h"
 #include "feedback/osci_FeedbackImagePreviewOverlay.h"
 #include "feedback/osci_FeedbackSettingsOverlay.h"
 #include "feedback/osci_FeedbackSuccessOverlay.h"

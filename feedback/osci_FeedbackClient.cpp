@@ -2,6 +2,8 @@
 
 namespace osci {
 namespace {
+constexpr size_t maxScreenshotBytesTotal = 25 * 1024 * 1024;
+
 juce::var makeFeedbackObject() {
     return juce::var(new juce::DynamicObject());
 }
@@ -48,18 +50,24 @@ FeedbackClient::FeedbackClient(BackendClientConfig configToUse)
 
 juce::Result FeedbackClient::submit(const FeedbackRequest& request,
                                     FeedbackResponse& response,
-                                    ProgressCallback progress,
                                     const std::atomic<bool>* cancellationRequested) const {
     if (request.productSlug.isEmpty()) {
         return juce::Result::fail("Feedback product is missing");
     }
 
+    size_t screenshotBytes = 0;
+    for (const auto& attachment : request.attachments) {
+        if (attachment.kind == FeedbackAttachmentKind::screenshot) {
+            screenshotBytes += attachment.data.getSize();
+        }
+    }
+    if (screenshotBytes > maxScreenshotBytesTotal) {
+        return juce::Result::fail("Attached screenshots exceed the 25 MiB total limit");
+    }
+
     std::vector<PreparedUpload> uploads;
     if (!request.attachments.empty()) {
-        if (progress != nullptr) {
-            progress(0.05f, "Preparing attachments...");
-        }
-        const auto prepareResult = prepareUploads(request, juce::Uuid().toString(), uploads);
+        const auto prepareResult = prepareUploads(request, juce::Uuid().toString(), uploads, cancellationRequested);
         if (prepareResult.failed()) {
             return prepareResult;
         }
@@ -71,10 +79,6 @@ juce::Result FeedbackClient::submit(const FeedbackRequest& request,
             if (isCancelled(cancellationRequested)) {
                 return juce::Result::fail("Feedback submission was cancelled");
             }
-            if (progress != nullptr) {
-                const auto fraction = uploads.empty() ? 1.0f : static_cast<float>(index) / static_cast<float>(uploads.size());
-                progress(0.15f + fraction * 0.65f, "Uploading attachment " + juce::String(index + 1) + " of " + juce::String(uploads.size()) + "...");
-            }
             const auto uploadResult = uploadAttachment(uploads[index], request.attachments[index], cancellationRequested);
             if (uploadResult.failed()) {
                 return uploadResult;
@@ -85,14 +89,7 @@ juce::Result FeedbackClient::submit(const FeedbackRequest& request,
     if (isCancelled(cancellationRequested)) {
         return juce::Result::fail("Feedback submission was cancelled");
     }
-    if (progress != nullptr) {
-        progress(0.88f, "Sending feedback...");
-    }
-    const auto submitResult = createFeedback(request, uploads, juce::Uuid().toString(), response);
-    if (submitResult.wasOk() && progress != nullptr) {
-        progress(1.0f, "Feedback sent");
-    }
-    return submitResult;
+    return createFeedback(request, uploads, juce::Uuid().toString(), response, cancellationRequested);
 }
 
 juce::String FeedbackClient::kindToString(FeedbackKind kind) {
@@ -109,7 +106,12 @@ juce::String FeedbackClient::endpoint(juce::StringRef path) const {
 
 juce::Result FeedbackClient::prepareUploads(const FeedbackRequest& request,
                                             juce::StringRef idempotencyKey,
-                                            std::vector<PreparedUpload>& uploads) const {
+                                            std::vector<PreparedUpload>& uploads,
+                                            const std::atomic<bool>* cancellationRequested) const {
+    if (isCancelled(cancellationRequested)) {
+        return juce::Result::fail("Feedback submission was cancelled");
+    }
+
     juce::Array<juce::var> files;
     for (const auto& attachment : request.attachments) {
         auto item = makeFeedbackObject();
@@ -123,7 +125,11 @@ juce::Result FeedbackClient::prepareUploads(const FeedbackRequest& request,
     setFeedbackProperty(body, "files", juce::var(std::move(files)));
 
     juce::var json;
-    const auto result = postJson("/api/v1/products/" + request.productSlug + "/feedback/uploads", body, idempotencyKey, json);
+    const auto result = postJson("/api/v1/products/" + request.productSlug + "/feedback/uploads",
+                                 body,
+                                 idempotencyKey,
+                                 json,
+                                 cancellationRequested);
     if (result.failed()) {
         return result;
     }
@@ -173,7 +179,10 @@ juce::Result FeedbackClient::uploadAttachment(const PreparedUpload& upload,
                                                 .withConnectionTimeoutMs(config.timeoutMs)
                                                 .withStatusCode(&statusCode)
                                                 .withHttpRequestCmd(upload.method)
-                                                .withExtraHeaders(headerText(upload.headers)));
+                                                .withExtraHeaders(headerText(upload.headers))
+                                                .withProgressCallback([cancellationRequested](int, int) {
+                                                    return !isCancelled(cancellationRequested);
+                                                }));
         if (stream != nullptr && statusCode >= 200 && statusCode < 300) {
             return juce::Result::ok();
         }
@@ -182,6 +191,9 @@ juce::Result FeedbackClient::uploadAttachment(const PreparedUpload& upload,
         }
         if (attempt == 0) {
             juce::Thread::sleep(250);
+            if (isCancelled(cancellationRequested)) {
+                return juce::Result::fail("Feedback submission was cancelled");
+            }
         }
     }
     return juce::Result::fail("Could not upload a feedback attachment");
@@ -190,7 +202,12 @@ juce::Result FeedbackClient::uploadAttachment(const PreparedUpload& upload,
 juce::Result FeedbackClient::createFeedback(const FeedbackRequest& request,
                                             const std::vector<PreparedUpload>& uploads,
                                             juce::StringRef idempotencyKey,
-                                            FeedbackResponse& response) const {
+                                            FeedbackResponse& response,
+                                            const std::atomic<bool>* cancellationRequested) const {
+    if (isCancelled(cancellationRequested)) {
+        return juce::Result::fail("Feedback submission was cancelled");
+    }
+
     auto body = makeFeedbackObject();
     setFeedbackProperty(body, "kind", kindToString(request.kind));
     setFeedbackProperty(body, "title", request.title);
@@ -236,7 +253,11 @@ juce::Result FeedbackClient::createFeedback(const FeedbackRequest& request,
     setFeedbackProperty(body, "upload_ids", juce::var(std::move(uploadIds)));
 
     juce::var json;
-    const auto result = postJson("/api/v1/products/" + request.productSlug + "/feedback", body, idempotencyKey, json);
+    const auto result = postJson("/api/v1/products/" + request.productSlug + "/feedback",
+                                 body,
+                                 idempotencyKey,
+                                 json,
+                                 cancellationRequested);
     if (result.failed()) {
         return result;
     }
@@ -257,9 +278,14 @@ juce::Result FeedbackClient::createFeedback(const FeedbackRequest& request,
 juce::Result FeedbackClient::postJson(juce::StringRef path,
                                       const juce::var& body,
                                       juce::StringRef idempotencyKey,
-                                      juce::var& response) const {
+                                      juce::var& response,
+                                      const std::atomic<bool>* cancellationRequested) const {
     const auto requestText = juce::JSON::toString(body, true);
     for (int attempt = 0; attempt < 2; ++attempt) {
+        if (isCancelled(cancellationRequested)) {
+            return juce::Result::fail("Feedback submission was cancelled");
+        }
+
         int statusCode = 0;
         auto url = juce::URL(endpoint(path)).withPOSTData(requestText);
         juce::String headers;
@@ -269,10 +295,16 @@ juce::Result FeedbackClient::postJson(juce::StringRef path,
                                                 .withConnectionTimeoutMs(config.timeoutMs)
                                                 .withStatusCode(&statusCode)
                                                 .withHttpRequestCmd("POST")
-                                                .withExtraHeaders(headers));
+                                                .withExtraHeaders(headers)
+                                                .withProgressCallback([cancellationRequested](int, int) {
+                                                    return !isCancelled(cancellationRequested);
+                                                }));
         if (stream == nullptr) {
             if (attempt == 0 && statusCode == 0) {
                 juce::Thread::sleep(250);
+                if (isCancelled(cancellationRequested)) {
+                    return juce::Result::fail("Feedback submission was cancelled");
+                }
                 continue;
             }
             return juce::Result::fail(errorFromResponse({}, statusCode));

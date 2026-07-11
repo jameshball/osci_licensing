@@ -30,7 +30,7 @@ FeedbackSettingsOverlay::FeedbackSettingsOverlay(juce::String closeButtonSvg,
                     logLabel,
                     logDetailLabel,
                     "Diagnostic log",
-                    "Recent osci-render entries with personal paths and device names removed",
+                    "Recent app diagnostics from a privacy-safe set of log categories",
                     includeLog,
                     logIsAvailable);
     configureToggle(projectToggle,
@@ -62,15 +62,6 @@ FeedbackSettingsOverlay::FeedbackSettingsOverlay(juce::String closeButtonSvg,
 
     logToggle.onClick = [this] { notifySettingsChanged(); };
     projectToggle.onClick = [this] { notifySettingsChanged(); };
-}
-
-void FeedbackSettingsOverlay::SettingsCard::paint(juce::Graphics& g) {
-    constexpr auto radius = 14.0f;
-    auto bounds = getLocalBounds().toFloat();
-    g.setColour(Colours::surfaceRaised().withAlpha(0.42f));
-    g.fillRoundedRectangle(bounds, radius);
-    g.setColour(Colours::neutralStroke(0.16f));
-    g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
 }
 
 void FeedbackSettingsOverlay::resizeContent(juce::Rectangle<int> contentArea) {

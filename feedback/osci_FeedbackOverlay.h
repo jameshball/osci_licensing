@@ -2,11 +2,6 @@
 
 namespace osci {
 
-class FeedbackSectionCard final : public juce::Component {
-public:
-    void paint(juce::Graphics& g) override;
-};
-
 class FeedbackFieldLabel final : public juce::Label {
 public:
     void setField(juce::String text, bool required);
@@ -24,7 +19,12 @@ struct FeedbackOverlayConfig {
     FeedbackAttachmentData automaticScreenshot;
     juce::Image automaticScreenshotPreview;
     FeedbackAttachmentData projectSnapshot;
-    std::function<void(FeedbackRequest&, FeedbackAttachmentData&, bool)> submissionProvider;
+    struct SubmissionOptions {
+        bool includeDiagnosticLog = false;
+        bool includeProjectSnapshot = false;
+    };
+
+    std::function<void(FeedbackRequest&, FeedbackAttachmentData&, SubmissionOptions)> submissionProvider;
     BackendClientConfig backend;
 };
 
@@ -70,8 +70,8 @@ private:
     std::vector<std::unique_ptr<ImagePreviewComponent>> userScreenshotPreviews;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    FeedbackSectionCard feedbackCard;
-    FeedbackSectionCard attachmentsCard;
+    FeedbackCard feedbackCard;
+    FeedbackCard attachmentsCard;
     AnimatedTextButton bugKindButton { "Bug report" };
     AnimatedTextButton featureKindButton { "Feature request" };
     FeedbackFieldLabel emailLabel;
@@ -92,7 +92,6 @@ private:
 
     juce::SpinLock resultLock;
     std::atomic<bool> cancellationRequested { false };
-    std::atomic<bool> submissionFinished { false };
     bool includeAutomaticScreenshot = false;
     bool includeDiagnosticLog = false;
     bool includeProjectSnapshot = false;
