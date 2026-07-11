@@ -177,16 +177,10 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     submitButton.setComponentID("submitFeedback");
     submitButton.setColour(juce::TextButton::buttonColourId, Colours::accentColor());
     submitButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
-    submitButton.onClick = [this] {
-        if (success) {
-            requestDismiss();
-        } else {
-            startSubmission();
-        }
-    };
+    submitButton.onClick = [this] { startSubmission(); };
 
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &introLabel, &bugKindButton, &featureKindButton,
+             &feedbackCard, &attachmentsCard, &bugKindButton, &featureKindButton,
              &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
              &dropZone, &attachmentSummary, &previewContainer, &errorLabel,
              settingsButton.get(), &submitButton }) {
@@ -195,7 +189,6 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
 
     feedbackCard.toBack();
     attachmentsCard.toBack();
-    introLabel.setVisible(false);
     errorLabel.setVisible(false);
     updateAttachmentSummary();
 }
@@ -207,13 +200,6 @@ FeedbackOverlay::~FeedbackOverlay() {
 }
 
 void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
-    if (success) {
-        submitButton.setBounds(contentArea.removeFromBottom(40).withSizeKeepingCentre(160, 40));
-        contentArea.removeFromBottom(8);
-        introLabel.setBounds(contentArea);
-        return;
-    }
-
     constexpr int sectionGap = 16;
     constexpr int cardPadding = 20;
     auto feedbackArea = contentArea.removeFromTop(346);
@@ -273,7 +259,7 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
 }
 
 juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
-    return getPanelSizeForContentSize(success ? juce::Point<int> { 520, 210 } : juce::Point<int> { 760, getFormContentHeight() });
+    return getPanelSizeForContentSize({ 760, getFormContentHeight() });
 }
 
 void FeedbackOverlay::run() {
@@ -324,13 +310,13 @@ void FeedbackOverlay::handleAsyncUpdate() {
 
     submissionActive = false;
     setDismissible(true);
-    setFormEnabled(true);
     juce::Result result = juce::Result::ok();
     {
         const juce::SpinLock::ScopedLockType lock(resultLock);
         result = submissionResult;
     }
     if (result.failed()) {
+        setFormEnabled(true);
         showInlineError(result.getErrorMessage());
         submitButton.setButtonText("Try Again");
         return;
@@ -590,23 +576,19 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 }
 
 void FeedbackOverlay::showSuccess() {
-    success = true;
-    for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &bugKindButton, &featureKindButton, &emailLabel, &emailEditor,
-             &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading, &dropZone,
-             &attachmentSummary, &previewContainer, settingsButton.get() }) {
-        component->setVisible(false);
-    }
-    introLabel.setVisible(true);
-    introLabel.setText("Thank you. Your feedback has been sent.\n\nReference " + response.reference
-                       + "\n\nKeep this reference if you contact support about the report.",
-                       juce::dontSendNotification);
-    introLabel.setFont(juce::Font(juce::FontOptions(18.0f, juce::Font::bold)));
-    introLabel.setJustificationType(juce::Justification::centred);
-    errorLabel.setVisible(false);
-    submitButton.setButtonText("Done");
-    submitButton.setEnabled(true);
-    requestOverlayLayout();
+    auto nextOverlay = std::make_shared<std::unique_ptr<OverlayComponent>>(
+        std::make_unique<FeedbackSuccessOverlay>(config.closeButtonSvg, response.reference));
+    const juce::Component::SafePointer<juce::Component> safeParent(getParentComponent());
+    auto dismissAndContinue = std::move(onDismissRequested);
+    onDismissRequested = [safeParent, nextOverlay, dismissAndContinue = std::move(dismissAndContinue)]() mutable {
+        if (safeParent != nullptr && *nextOverlay != nullptr) {
+            OverlayComponent::show(*safeParent.getComponent(), std::move(*nextOverlay));
+        }
+        if (dismissAndContinue != nullptr) {
+            dismissAndContinue();
+        }
+    };
+    requestDismiss();
 }
 
 void FeedbackOverlay::openImagePreview(const juce::Image& image, juce::String title) {

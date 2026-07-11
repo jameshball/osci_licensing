@@ -39,6 +39,7 @@
 #include "feedback/osci_FeedbackClient.h"
 #include "feedback/osci_FeedbackImagePreviewOverlay.h"
 #include "feedback/osci_FeedbackSettingsOverlay.h"
+#include "feedback/osci_FeedbackSuccessOverlay.h"
 #include "feedback/osci_FeedbackOverlay.h"
 #include "state/osci_UpdateSettings.h"
 #include "license/osci_LicenseManager.h"

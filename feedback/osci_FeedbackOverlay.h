@@ -72,7 +72,6 @@ private:
 
     FeedbackSectionCard feedbackCard;
     FeedbackSectionCard attachmentsCard;
-    juce::Label introLabel;
     AnimatedTextButton bugKindButton { "Bug report" };
     AnimatedTextButton featureKindButton { "Feature request" };
     FeedbackFieldLabel emailLabel;
@@ -98,7 +97,6 @@ private:
     bool includeDiagnosticLog = false;
     bool includeProjectSnapshot = false;
     bool submissionActive = false;
-    bool success = false;
     bool validationAttempted = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FeedbackOverlay)

@@ -8,6 +8,7 @@
 #include "feedback/osci_FeedbackClient.cpp"
 #include "feedback/osci_FeedbackImagePreviewOverlay.cpp"
 #include "feedback/osci_FeedbackSettingsOverlay.cpp"
+#include "feedback/osci_FeedbackSuccessOverlay.cpp"
 #include "feedback/osci_FeedbackOverlay.cpp"
 #include "state/osci_UpdateSettings.cpp"
 #include "license/osci_LicenseManager.cpp"
