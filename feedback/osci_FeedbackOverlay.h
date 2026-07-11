@@ -7,8 +7,33 @@ public:
     void paint(juce::Graphics& g) override;
 };
 
+class FeedbackFieldLabel final : public juce::Label {
+public:
+    void setField(juce::String text, bool required);
+    void paint(juce::Graphics& g) override;
+
+private:
+    juce::String displayText;
+    bool isRequired = false;
+};
+
+class FeedbackSettingsButton final : public juce::Component {
+public:
+    explicit FeedbackSettingsButton(juce::String settingsSvg);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+    std::function<void()> onClick;
+
+private:
+    SvgButton iconButton;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FeedbackSettingsButton)
+};
+
 struct FeedbackOverlayConfig {
     juce::String closeButtonSvg;
+    juce::String settingsButtonSvg;
     juce::String productDisplayName;
     FeedbackRequest context;
     FeedbackAttachmentData automaticScreenshot;
@@ -31,19 +56,22 @@ protected:
 private:
     void run() override;
     void handleAsyncUpdate() override;
-    void configureEditor(juce::TextEditor& editor, juce::String name, bool multiline);
-    void configureToggle(jux::SwitchButton& toggle, juce::Label& label, juce::Label& detailLabel, juce::String name, juce::String detail, bool enabled);
+    void configureEditor(TextEditor& editor, juce::String name, bool multiline);
     void startSubmission();
-    bool validateForm();
+    bool validateForm(bool focusFirstInvalid = true);
+    bool isValidEmail(juce::StringRef email) const;
+    void setEditorValid(TextEditor& editor, bool valid);
     void addUserFiles(const std::vector<juce::File>& files);
     void chooseUserFiles();
+    void removeUserScreenshot(size_t index);
     void updateAttachmentSummary();
-    void rebuildUserScreenshotPreviews();
-    void updateToggleAvailability();
+    void rebuildScreenshotPreviews();
     void setFormEnabled(bool enabled);
     void showInlineError(juce::String message);
     void showSuccess();
     void openImagePreview(const juce::Image& image, juce::String title);
+    void openSettings();
+    int getAttachedScreenshotCount() const;
     int getFormContentHeight() const;
 
     FeedbackOverlayConfig config;
@@ -58,44 +86,27 @@ private:
 
     FeedbackSectionCard feedbackCard;
     FeedbackSectionCard attachmentsCard;
-    FeedbackSectionCard diagnosticsCard;
-    FeedbackSectionCard submissionCard;
     juce::Label introLabel;
     juce::Label feedbackHeading;
-    juce::Label kindLabel;
+    FeedbackFieldLabel kindLabel;
     juce::ComboBox kindBox;
-    juce::Label emailLabel;
+    FeedbackFieldLabel emailLabel;
     TextEditor emailEditor { "feedbackEmail" };
-    juce::Label titleLabel;
+    FeedbackFieldLabel titleLabel;
     TextEditor titleEditor { "feedbackTitle" };
-    juce::Label descriptionLabel;
+    FeedbackFieldLabel descriptionLabel;
     TextEditor descriptionEditor { "feedbackDescription" };
     juce::Label attachmentsHeading;
     FileDropZoneComponent dropZone;
     juce::Label attachmentSummary;
-    juce::TextButton clearAttachmentsButton { "Clear" };
-    juce::Component userPreviewContainer;
-    juce::Label diagnosticsHeading;
-
-    jux::SwitchButton screenshotToggle { "Include screenshot", false };
-    juce::Label screenshotLabel;
-    juce::Label screenshotDetailLabel;
+    juce::Component previewContainer;
     ImagePreviewComponent screenshotPreview;
-    jux::SwitchButton logToggle { "Include diagnostic log", false };
-    juce::Label logLabel;
-    juce::Label logDetailLabel;
-    jux::SwitchButton projectToggle { "Include current project", false };
-    juce::Label projectLabel;
-    juce::Label projectDetailLabel;
-    jux::SwitchButton contextToggle { "Include technical details", false };
-    juce::Label contextLabel;
-    juce::Label contextDetailLabel;
-    juce::Label privacyLabel;
 
     juce::Label errorLabel;
     double progressValue = 0.0;
     juce::ProgressBar progressBar { progressValue };
     juce::Label progressLabel;
+    std::unique_ptr<FeedbackSettingsButton> settingsButton;
     juce::TextButton submitButton { "Send Feedback" };
 
     juce::SpinLock resultLock;
@@ -103,8 +114,12 @@ private:
     std::atomic<float> backgroundProgress { 0.0f };
     std::atomic<bool> cancellationRequested { false };
     std::atomic<bool> submissionFinished { false };
+    bool includeAutomaticScreenshot = false;
+    bool includeDiagnosticLog = false;
+    bool includeProjectSnapshot = false;
     bool submissionActive = false;
     bool success = false;
+    bool validationAttempted = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FeedbackOverlay)
 };

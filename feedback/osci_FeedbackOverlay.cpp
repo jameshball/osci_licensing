@@ -33,6 +33,55 @@ void FeedbackSectionCard::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
 }
 
+void FeedbackFieldLabel::setField(juce::String text, bool required) {
+    displayText = std::move(text);
+    isRequired = required;
+    setText(displayText + (isRequired ? " (required)" : juce::String()), juce::dontSendNotification);
+    setName(displayText + (isRequired ? ", required" : juce::String()));
+    setInterceptsMouseClicks(false, false);
+}
+
+void FeedbackFieldLabel::paint(juce::Graphics& g) {
+    const juce::Font font(juce::FontOptions(13.0f, juce::Font::bold));
+    g.setFont(font);
+    g.setColour(Colours::text());
+    const auto bounds = getLocalBounds();
+    g.drawText(displayText, bounds, juce::Justification::centredLeft, false);
+    if (isRequired) {
+        const auto textWidth = juce::roundToInt(font.getStringWidthFloat(displayText));
+        g.setColour(Colours::danger());
+        g.drawText("*", bounds.withTrimmedLeft(textWidth + 4), juce::Justification::centredLeft, false);
+    }
+}
+
+FeedbackSettingsButton::FeedbackSettingsButton(juce::String settingsSvg)
+    : iconButton("Report settings", std::move(settingsSvg), Colours::textMuted(), Colours::text()) {
+    setName("Report settings");
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    setInterceptsMouseClicks(false, true);
+    iconButton.setName("Report settings");
+    iconButton.setComponentID("feedbackSettingsButton");
+    iconButton.setTooltip("Report settings");
+    iconButton.onClick = [this] {
+        if (onClick != nullptr) {
+            onClick();
+        }
+    };
+    addAndMakeVisible(iconButton);
+}
+
+void FeedbackSettingsButton::paint(juce::Graphics& g) {
+    auto bounds = getLocalBounds().toFloat().reduced(0.75f);
+    g.setColour(Colours::neutralFill(0.08f));
+    g.fillEllipse(bounds);
+    g.setColour(Colours::neutralStroke(0.28f));
+    g.drawEllipse(bounds, 1.25f);
+}
+
+void FeedbackSettingsButton::resized() {
+    iconButton.setBounds(getLocalBounds().reduced(10));
+}
+
 FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     : OverlayComponent(configToUse.closeButtonSvg),
       juce::Thread("Feedback submission"),
@@ -43,39 +92,59 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     setOverlayTitle("Send Feedback");
     setReserveHeaderSpace(true);
 
+    includeAutomaticScreenshot = !config.automaticScreenshot.data.isEmpty() && config.automaticScreenshotPreview.isValid();
+    includeDiagnosticLog = config.context.log.isNotEmpty();
+    includeProjectSnapshot = !config.projectSnapshot.data.isEmpty();
+
     configureFeedbackLabel(introLabel,
-                   "Tell us what happened or what would make " + config.productDisplayName + " better.\n"
-                   "Technical details are prepared automatically and remain under your control.",
-                   14.0f);
+                           "Tell us what happened or what would make " + config.productDisplayName + " better.\n"
+                           "Technical app and system details are included automatically; optional diagnostics remain under your control.",
+                           14.5f);
     introLabel.setJustificationType(juce::Justification::topLeft);
 
     configureFeedbackLabel(feedbackHeading, "Your feedback", 17.0f, true);
-    configureFeedbackLabel(kindLabel, "Type", 13.0f, true);
-    kindBox.setName("Feedback type");
+    kindLabel.setField("Type", true);
+    kindBox.setName("Feedback type, required");
     kindBox.setComponentID("feedbackKind");
     kindBox.addItem("Bug report", 1);
     kindBox.addItem("Feature request", 2);
     kindBox.setSelectedId(1, juce::dontSendNotification);
 
-    configureFeedbackLabel(emailLabel, "Contact email", 13.0f, true);
+    emailLabel.setField("Contact email", true);
     configureEditor(emailEditor, "Contact email", false);
     emailEditor.setInputRestrictions(254);
     emailEditor.setText(config.context.contactEmail, false);
 
-    configureFeedbackLabel(titleLabel, "Title", 13.0f, true);
+    titleLabel.setField("Title", true);
     configureEditor(titleEditor, "Feedback title", false);
     titleEditor.setInputRestrictions(200);
     titleEditor.setTextToShowWhenEmpty("A short summary", Colours::textSubtle());
 
-    configureFeedbackLabel(descriptionLabel, "Details", 13.0f, true);
+    descriptionLabel.setField("Details", true);
     configureEditor(descriptionEditor, "Feedback details", true);
     descriptionEditor.setInputRestrictions(20000);
     descriptionEditor.setTextToShowWhenEmpty("What happened? What did you expect? Steps to reproduce are especially useful.", Colours::textSubtle());
 
+    emailEditor.onTextChange = [this] {
+        if (validationAttempted && isValidEmail(emailEditor.getText().trim())) {
+            setEditorValid(emailEditor, true);
+        }
+    };
+    titleEditor.onTextChange = [this] {
+        if (validationAttempted && titleEditor.getText().trim().isNotEmpty()) {
+            setEditorValid(titleEditor, true);
+        }
+    };
+    descriptionEditor.onTextChange = [this] {
+        if (validationAttempted && descriptionEditor.getText().trim().isNotEmpty()) {
+            setEditorValid(descriptionEditor, true);
+        }
+    };
+
     configureFeedbackLabel(attachmentsHeading, "Screenshots", 17.0f, true);
     dropZone.setAccentColour(Colours::accentColor());
     dropZone.setTitle("Drop screenshots here");
-    dropZone.setSubtitle("PNG or JPEG, up to four images, 10 MiB each");
+    dropZone.setSubtitle("PNG or JPEG • up to four images • 10 MiB each");
     dropZone.setActionText("Choose Images...");
     dropZone.setAcceptedDescription("PNG or JPEG image");
     dropZone.setIsFileAccepted([](const juce::File& file) {
@@ -88,35 +157,18 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
         showInlineError("Only PNG and JPEG screenshots can be attached.");
     };
 
-    configureFeedbackLabel(attachmentSummary, "No additional screenshots selected", 12.5f);
+    configureFeedbackLabel(attachmentSummary, {}, 12.5f);
     attachmentSummary.setColour(juce::Label::textColourId, Colours::textSubtle());
-    clearAttachmentsButton.setName("Clear added screenshots");
-    clearAttachmentsButton.setComponentID("clearFeedbackAttachments");
-    clearAttachmentsButton.onClick = [this] {
-        userScreenshots.clear();
-        userScreenshotImages.clear();
-        updateAttachmentSummary();
-    };
-
-    configureFeedbackLabel(diagnosticsHeading, "Include with this report", 17.0f, true);
-    configureToggle(screenshotToggle, screenshotLabel, screenshotDetailLabel, "App screenshot", "Captured before this form opened", !config.automaticScreenshot.data.isEmpty());
-    configureToggle(logToggle, logLabel, logDetailLabel, "Diagnostic log", "Recent entries with personal paths and device names removed", config.context.log.isNotEmpty());
-    configureToggle(projectToggle, projectLabel, projectDetailLabel, "Current project", "Sanitized in-memory .osci or .sosci snapshot", !config.projectSnapshot.data.isEmpty());
-    configureToggle(contextToggle, contextLabel, contextDetailLabel, "Technical details", "Audio, renderer, host and display information", !config.context.clientContext.isVoid());
 
     screenshotPreview.setComponentID("automaticScreenshotPreview");
-    screenshotPreview.setCaption("Preview");
+    screenshotPreview.setCaption("App screenshot");
     screenshotPreview.setAccentColour(Colours::accentColor());
     screenshotPreview.setImage(config.automaticScreenshotPreview);
     screenshotPreview.onOpenRequested = [this] { openImagePreview(config.automaticScreenshotPreview, "App Screenshot"); };
-    screenshotToggle.onClick = [this] { updateToggleAvailability(); };
-
-    configureFeedbackLabel(privacyLabel,
-                   "Required product, operating-system and architecture fields are always included.\n"
-                   "Your report and private attachments are only available to the support team.",
-                   12.5f);
-    privacyLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
-    privacyLabel.setJustificationType(juce::Justification::topLeft);
+    screenshotPreview.setRemoveAction([this] {
+        includeAutomaticScreenshot = false;
+        updateAttachmentSummary();
+    }, "removeAutomaticScreenshot");
 
     configureFeedbackLabel(errorLabel, {}, 12.5f, true);
     errorLabel.setColour(juce::Label::textColourId, Colours::danger());
@@ -129,6 +181,9 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     configureFeedbackLabel(progressLabel, {}, 12.5f);
     progressLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
     progressLabel.setVisible(false);
+
+    settingsButton = std::make_unique<FeedbackSettingsButton>(config.settingsButtonSvg);
+    settingsButton->onClick = [this] { openSettings(); };
 
     submitButton.setName("Send Feedback");
     submitButton.setComponentID("submitFeedback");
@@ -143,27 +198,16 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     };
 
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &diagnosticsCard, &submissionCard, &introLabel, &feedbackHeading,
-             &kindLabel, &kindBox, &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel,
-             &descriptionEditor, &attachmentsHeading, &dropZone, &attachmentSummary, &clearAttachmentsButton,
-             &userPreviewContainer, &diagnosticsHeading, &screenshotToggle, &screenshotLabel, &screenshotDetailLabel,
-             &screenshotPreview, &logToggle, &logLabel, &logDetailLabel, &projectToggle, &projectLabel,
-             &projectDetailLabel, &contextToggle, &contextLabel, &contextDetailLabel, &privacyLabel, &errorLabel,
-             &progressBar, &progressLabel, &submitButton }) {
+             &feedbackCard, &attachmentsCard, &introLabel, &feedbackHeading, &kindLabel, &kindBox, &emailLabel,
+             &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
+             &dropZone, &attachmentSummary, &previewContainer, &errorLabel, &progressBar, &progressLabel,
+             settingsButton.get(), &submitButton }) {
         addPanelContentAndMakeVisible(*component);
     }
 
     feedbackCard.toBack();
     attachmentsCard.toBack();
-    diagnosticsCard.toBack();
-    submissionCard.toBack();
-
-    errorLabel.setVisible(false);
-    progressBar.setVisible(false);
-    progressLabel.setVisible(false);
-
     updateAttachmentSummary();
-    updateToggleAvailability();
 }
 
 FeedbackOverlay::~FeedbackOverlay() {
@@ -205,66 +249,43 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
     descriptionEditor.setBounds(feedbackArea.removeFromTop(104));
     contentArea.removeFromTop(sectionGap);
 
-    const auto hasUserPreviews = !userScreenshotPreviews.empty();
-    auto attachmentsArea = contentArea.removeFromTop(hasUserPreviews ? 420 : 304);
+    const auto hasPreviews = getAttachedScreenshotCount() > 0;
+    auto attachmentsArea = contentArea.removeFromTop(hasPreviews ? 438 : 322);
     attachmentsCard.setBounds(attachmentsArea);
     attachmentsArea.reduce(cardPadding, cardPadding);
     attachmentsHeading.setBounds(attachmentsArea.removeFromTop(26));
     attachmentsArea.removeFromTop(12);
-    dropZone.setBounds(attachmentsArea.removeFromTop(184));
-    attachmentsArea.removeFromTop(8);
-    auto attachmentRow = attachmentsArea.removeFromTop(34);
-    clearAttachmentsButton.setBounds(attachmentRow.removeFromRight(92).withSizeKeepingCentre(86, 30));
-    attachmentSummary.setBounds(attachmentRow);
-    if (hasUserPreviews) {
+    dropZone.setBounds(attachmentsArea.removeFromTop(204));
+    attachmentsArea.removeFromTop(10);
+    attachmentSummary.setBounds(attachmentsArea.removeFromTop(30));
+    if (hasPreviews) {
         attachmentsArea.removeFromTop(12);
-        userPreviewContainer.setBounds(attachmentsArea.removeFromTop(104));
-        const auto count = static_cast<int>(userScreenshotPreviews.size());
+        previewContainer.setBounds(attachmentsArea.removeFromTop(104));
+        const auto count = getAttachedScreenshotCount();
         constexpr int previewGap = 12;
-        const auto previewWidth = juce::jmin(156, (userPreviewContainer.getWidth() - previewGap * juce::jmax(0, count - 1)) / juce::jmax(1, count));
-        auto previewArea = userPreviewContainer.getLocalBounds();
+        const auto previewWidth = juce::jmin(156, (previewContainer.getWidth() - previewGap * juce::jmax(0, count - 1)) / juce::jmax(1, count));
+        auto previewArea = previewContainer.getLocalBounds();
+        if (includeAutomaticScreenshot) {
+            screenshotPreview.setBounds(previewArea.removeFromLeft(previewWidth));
+            previewArea.removeFromLeft(previewGap);
+        }
         for (auto& preview : userScreenshotPreviews) {
             preview->setBounds(previewArea.removeFromLeft(previewWidth));
             previewArea.removeFromLeft(previewGap);
         }
     } else {
-        userPreviewContainer.setBounds({});
+        previewContainer.setBounds({});
     }
     contentArea.removeFromTop(sectionGap);
 
-    auto diagnosticsArea = contentArea.removeFromTop(392);
-    diagnosticsCard.setBounds(diagnosticsArea);
-    diagnosticsArea.reduce(cardPadding, cardPadding);
-    diagnosticsHeading.setBounds(diagnosticsArea.removeFromTop(26));
-    diagnosticsArea.removeFromTop(10);
-    auto layoutToggle = [](juce::Rectangle<int> row, jux::SwitchButton& toggle, juce::Label& label,
-                           juce::Label& detailLabel, ImagePreviewComponent* preview = nullptr) {
-        toggle.setBounds(row.removeFromLeft(44).withSizeKeepingCentre(44, 32));
-        row.removeFromLeft(14);
-        if (preview != nullptr) {
-            preview->setBounds(row.removeFromRight(132).reduced(0, 4));
-            row.removeFromRight(16);
-        }
-        auto textArea = row.withTrimmedTop(6).withTrimmedBottom(6);
-        label.setBounds(textArea.removeFromTop(22));
-        detailLabel.setBounds(textArea);
-    };
-    layoutToggle(diagnosticsArea.removeFromTop(86), screenshotToggle, screenshotLabel, screenshotDetailLabel, &screenshotPreview);
-    layoutToggle(diagnosticsArea.removeFromTop(58), logToggle, logLabel, logDetailLabel);
-    layoutToggle(diagnosticsArea.removeFromTop(58), projectToggle, projectLabel, projectDetailLabel);
-    layoutToggle(diagnosticsArea.removeFromTop(58), contextToggle, contextLabel, contextDetailLabel);
-    diagnosticsArea.removeFromTop(10);
-    privacyLabel.setBounds(diagnosticsArea.removeFromTop(44));
-    contentArea.removeFromTop(sectionGap);
-
-    auto submissionArea = contentArea.removeFromTop(104);
-    submissionCard.setBounds(submissionArea);
-    submissionArea.reduce(cardPadding, 16);
-    submitButton.setBounds(submissionArea.removeFromRight(184).withSizeKeepingCentre(184, 44));
-    submissionArea.removeFromRight(18);
-    errorLabel.setBounds(submissionArea.removeFromTop(30));
-    progressLabel.setBounds(submissionArea.removeFromTop(22));
-    progressBar.setBounds(submissionArea.removeFromTop(10));
+    auto footer = contentArea.removeFromTop(72);
+    submitButton.setBounds(footer.removeFromRight(184).withSizeKeepingCentre(184, 44));
+    footer.removeFromRight(12);
+    settingsButton->setBounds(footer.removeFromRight(44).withSizeKeepingCentre(44, 44));
+    footer.removeFromRight(18);
+    errorLabel.setBounds(footer.removeFromTop(30));
+    progressLabel.setBounds(footer.removeFromTop(22));
+    progressBar.setBounds(footer.removeFromTop(10));
 }
 
 juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
@@ -322,8 +343,8 @@ void FeedbackOverlay::handleAsyncUpdate() {
     showSuccess();
 }
 
-void FeedbackOverlay::configureEditor(juce::TextEditor& editor, juce::String name, bool multiline) {
-    editor.setName(name);
+void FeedbackOverlay::configureEditor(TextEditor& editor, juce::String name, bool multiline) {
+    editor.setName(name + ", required");
     editor.setComponentID(name.replaceCharacter(' ', '_').toLowerCase());
     editor.setMultiLine(multiline, multiline);
     editor.setReturnKeyStartsNewLine(multiline);
@@ -332,22 +353,6 @@ void FeedbackOverlay::configureEditor(juce::TextEditor& editor, juce::String nam
     editor.setColour(juce::TextEditor::backgroundColourId, Colours::surfaceSunken());
     editor.setColour(juce::TextEditor::outlineColourId, Colours::neutralStroke(0.18f));
     editor.setColour(juce::TextEditor::focusedOutlineColourId, Colours::accentColor());
-}
-
-void FeedbackOverlay::configureToggle(jux::SwitchButton& toggle,
-                                      juce::Label& label,
-                                      juce::Label& detailLabel,
-                                      juce::String name,
-                                      juce::String detail,
-                                      bool enabled) {
-    toggle.setName(name);
-    toggle.setComponentID(name.replaceCharacter(' ', '_').toLowerCase());
-    toggle.setToggleState(enabled, juce::dontSendNotification);
-    toggle.setEnabled(enabled);
-    configureFeedbackLabel(label, name, 14.0f, true);
-    configureFeedbackLabel(detailLabel, detail, 13.0f);
-    label.setColour(juce::Label::textColourId, enabled ? Colours::text() : Colours::textSubtle());
-    detailLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
 }
 
 void FeedbackOverlay::startSubmission() {
@@ -360,19 +365,15 @@ void FeedbackOverlay::startSubmission() {
     pendingRequest.description = descriptionEditor.getText().trim();
     pendingRequest.contactEmail = emailEditor.getText().trim();
     pendingRequest.attachments = userScreenshots;
-    if (screenshotToggle.getToggleState() && !config.automaticScreenshot.data.isEmpty()) {
+    if (includeAutomaticScreenshot && !config.automaticScreenshot.data.isEmpty()) {
         pendingRequest.attachments.insert(pendingRequest.attachments.begin(), config.automaticScreenshot);
     }
-    if (projectToggle.getToggleState() && !config.projectSnapshot.data.isEmpty()) {
+    if (includeProjectSnapshot && !config.projectSnapshot.data.isEmpty()) {
         pendingRequest.attachments.push_back(config.projectSnapshot);
     }
-    if (!logToggle.getToggleState()) {
+    if (!includeDiagnosticLog) {
         pendingRequest.log.clear();
         pendingRequest.logTruncated = false;
-    }
-    if (!contextToggle.getToggleState()) {
-        pendingRequest.clientContext = juce::var();
-        pendingRequest.clientContextSchemaVersion = 0;
     }
 
     submissionActive = true;
@@ -390,25 +391,61 @@ void FeedbackOverlay::startSubmission() {
     startThread();
 }
 
-bool FeedbackOverlay::validateForm() {
-    const auto email = emailEditor.getText().trim();
-    if (!email.containsChar('@') || email.startsWithChar('@') || email.endsWithChar('@')) {
+bool FeedbackOverlay::validateForm(bool focusFirstInvalid) {
+    validationAttempted = true;
+    const auto emailValid = isValidEmail(emailEditor.getText().trim());
+    const auto titleValid = titleEditor.getText().trim().isNotEmpty();
+    const auto descriptionValid = descriptionEditor.getText().trim().isNotEmpty();
+    setEditorValid(emailEditor, emailValid);
+    setEditorValid(titleEditor, titleValid);
+    setEditorValid(descriptionEditor, descriptionValid);
+
+    const auto invalidCount = static_cast<int>(!emailValid) + static_cast<int>(!titleValid) + static_cast<int>(!descriptionValid);
+    if (invalidCount == 0) {
+        errorLabel.setVisible(false);
+        return true;
+    }
+
+    if (!emailValid && invalidCount == 1) {
         showInlineError("Enter a valid contact email address.");
-        emailEditor.grabKeyboardFocus();
-        return false;
-    }
-    if (titleEditor.getText().trim().isEmpty()) {
+    } else if (!titleValid && invalidCount == 1) {
         showInlineError("Add a short title for your feedback.");
-        titleEditor.grabKeyboardFocus();
-        return false;
-    }
-    if (descriptionEditor.getText().trim().isEmpty()) {
+    } else if (!descriptionValid && invalidCount == 1) {
         showInlineError("Tell us a little more about your feedback.");
-        descriptionEditor.grabKeyboardFocus();
+    } else {
+        showInlineError("Complete the highlighted required fields before sending.");
+    }
+
+    if (focusFirstInvalid) {
+        if (!emailValid) {
+            emailEditor.grabKeyboardFocus();
+        } else if (!titleValid) {
+            titleEditor.grabKeyboardFocus();
+        } else {
+            descriptionEditor.grabKeyboardFocus();
+        }
+    }
+    return false;
+}
+
+bool FeedbackOverlay::isValidEmail(juce::StringRef emailRef) const {
+    const auto email = juce::String(emailRef).trim();
+    if (email.containsAnyOf(" \t\r\n") || email.contains("..")) {
         return false;
     }
-    errorLabel.setVisible(false);
-    return true;
+    const auto at = email.indexOfChar('@');
+    if (at <= 0 || at != email.lastIndexOfChar('@') || at >= email.length() - 1) {
+        return false;
+    }
+    const auto domain = email.substring(at + 1);
+    const auto dot = domain.lastIndexOfChar('.');
+    return dot > 0 && dot < domain.length() - 1;
+}
+
+void FeedbackOverlay::setEditorValid(TextEditor& editor, bool valid) {
+    editor.setColour(juce::TextEditor::outlineColourId, valid ? Colours::neutralStroke(0.18f) : Colours::danger());
+    editor.setColour(juce::TextEditor::focusedOutlineColourId, valid ? Colours::accentColor() : Colours::danger());
+    editor.repaint();
 }
 
 void FeedbackOverlay::addUserFiles(const std::vector<juce::File>& files) {
@@ -465,30 +502,46 @@ void FeedbackOverlay::chooseUserFiles() {
     });
 }
 
+void FeedbackOverlay::removeUserScreenshot(size_t index) {
+    if (index >= userScreenshots.size() || index >= userScreenshotImages.size()) {
+        return;
+    }
+    userScreenshots.erase(userScreenshots.begin() + static_cast<std::ptrdiff_t>(index));
+    userScreenshotImages.erase(userScreenshotImages.begin() + static_cast<std::ptrdiff_t>(index));
+    updateAttachmentSummary();
+}
+
 void FeedbackOverlay::updateAttachmentSummary() {
-    rebuildUserScreenshotPreviews();
-    const auto count = static_cast<int>(userScreenshots.size());
+    rebuildScreenshotPreviews();
+    const auto count = getAttachedScreenshotCount();
     if (count == 0) {
-        attachmentSummary.setText("No additional screenshots selected", juce::dontSendNotification);
+        attachmentSummary.setText("No screenshots attached", juce::dontSendNotification);
         dropZone.setStatus(FileDropZoneComponent::Status::empty);
     } else {
         juce::String names;
-        for (size_t index = 0; index < userScreenshots.size(); ++index) {
-            if (index > 0) {
+        if (includeAutomaticScreenshot) {
+            names = "App screenshot";
+        }
+        for (const auto& screenshot : userScreenshots) {
+            if (names.isNotEmpty()) {
                 names << ", ";
             }
-            names << userScreenshots[index].filename;
+            names << screenshot.filename;
         }
-        attachmentSummary.setText(juce::String(count) + (count == 1 ? " screenshot: " : " screenshots: ") + names, juce::dontSendNotification);
+        attachmentSummary.setText(juce::String(count) + (count == 1 ? " screenshot attached: " : " screenshots attached: ") + names,
+                                  juce::dontSendNotification);
         dropZone.setStatus(FileDropZoneComponent::Status::success, juce::String(count) + " ready");
     }
-    clearAttachmentsButton.setVisible(count > 0);
     requestOverlayLayout();
 }
 
-void FeedbackOverlay::rebuildUserScreenshotPreviews() {
+void FeedbackOverlay::rebuildScreenshotPreviews() {
     userScreenshotPreviews.clear();
-    userPreviewContainer.removeAllChildren();
+    previewContainer.removeAllChildren();
+    if (includeAutomaticScreenshot) {
+        previewContainer.addAndMakeVisible(screenshotPreview);
+    }
+
     const juce::Component::SafePointer<FeedbackOverlay> safeThis(this);
     for (size_t index = 0; index < userScreenshotImages.size(); ++index) {
         auto preview = std::make_unique<ImagePreviewComponent>();
@@ -503,21 +556,21 @@ void FeedbackOverlay::rebuildUserScreenshotPreviews() {
                 safeThis->openImagePreview(image, title);
             }
         };
-        userPreviewContainer.addAndMakeVisible(*preview);
+        preview->setRemoveAction([safeThis, index] {
+            if (safeThis != nullptr) {
+                safeThis->removeUserScreenshot(index);
+            }
+        }, "removeUserScreenshot" + juce::String(index + 1));
+        previewContainer.addAndMakeVisible(*preview);
         userScreenshotPreviews.push_back(std::move(preview));
     }
-    userPreviewContainer.setVisible(!userScreenshotPreviews.empty());
-}
-
-void FeedbackOverlay::updateToggleAvailability() {
-    screenshotPreview.setAlpha(screenshotToggle.getToggleState() ? 1.0f : 0.52f);
+    previewContainer.setVisible(getAttachedScreenshotCount() > 0);
 }
 
 void FeedbackOverlay::setFormEnabled(bool enabled) {
     for (auto* component : std::initializer_list<juce::Component*> {
-             &kindBox, &emailEditor, &titleEditor, &descriptionEditor, &dropZone, &clearAttachmentsButton,
-             &userPreviewContainer, &screenshotToggle, &screenshotPreview, &logToggle, &projectToggle,
-             &contextToggle, &submitButton }) {
+             &kindBox, &emailEditor, &titleEditor, &descriptionEditor, &dropZone, &previewContainer,
+             settingsButton.get(), &submitButton }) {
         component->setEnabled(enabled);
     }
 }
@@ -530,12 +583,9 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 void FeedbackOverlay::showSuccess() {
     success = true;
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &diagnosticsCard, &submissionCard, &feedbackHeading, &kindLabel,
-             &kindBox, &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor,
-             &attachmentsHeading, &dropZone, &attachmentSummary, &clearAttachmentsButton, &userPreviewContainer,
-             &diagnosticsHeading, &screenshotToggle, &screenshotLabel, &screenshotDetailLabel, &screenshotPreview,
-             &logToggle, &logLabel, &logDetailLabel, &projectToggle, &projectLabel, &projectDetailLabel,
-             &contextToggle, &contextLabel, &contextDetailLabel, &privacyLabel }) {
+             &feedbackCard, &attachmentsCard, &feedbackHeading, &kindLabel, &kindBox, &emailLabel, &emailEditor,
+             &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading, &dropZone,
+             &attachmentSummary, &previewContainer, settingsButton.get() }) {
         component->setVisible(false);
     }
     introLabel.setText("Thank you. Your feedback has been sent.\n\nReference " + response.reference
@@ -556,16 +606,37 @@ void FeedbackOverlay::openImagePreview(const juce::Image& image, juce::String ti
     OverlayComponent::show(*this, std::make_unique<FeedbackImagePreviewOverlay>(config.closeButtonSvg, image, std::move(title)));
 }
 
+void FeedbackOverlay::openSettings() {
+    const juce::Component::SafePointer<FeedbackOverlay> safeThis(this);
+    OverlayComponent::show(
+        *this,
+        std::make_unique<FeedbackSettingsOverlay>(
+            config.closeButtonSvg,
+            includeDiagnosticLog,
+            config.context.log.isNotEmpty(),
+            includeProjectSnapshot,
+            !config.projectSnapshot.data.isEmpty(),
+            [safeThis](bool includeLog, bool includeProject) {
+                if (safeThis != nullptr) {
+                    safeThis->includeDiagnosticLog = includeLog;
+                    safeThis->includeProjectSnapshot = includeProject;
+                }
+            }));
+}
+
+int FeedbackOverlay::getAttachedScreenshotCount() const {
+    return static_cast<int>(userScreenshotPreviews.size()) + static_cast<int>(includeAutomaticScreenshot);
+}
+
 int FeedbackOverlay::getFormContentHeight() const {
     constexpr int introHeight = 42;
     constexpr int sectionGap = 16;
     constexpr int feedbackHeight = 350;
-    constexpr int attachmentsHeight = 304;
+    constexpr int attachmentsHeight = 322;
     constexpr int previewHeight = 116;
-    constexpr int diagnosticsHeight = 392;
-    constexpr int submissionHeight = 104;
+    constexpr int footerHeight = 72;
     return introHeight + sectionGap + feedbackHeight + sectionGap + attachmentsHeight
-        + (userScreenshotPreviews.empty() ? 0 : previewHeight) + sectionGap + diagnosticsHeight + sectionGap + submissionHeight;
+        + (getAttachedScreenshotCount() > 0 ? previewHeight : 0) + sectionGap + footerHeight;
 }
 
 } // namespace osci
