@@ -39,27 +39,6 @@ bool encodePng(const juce::Image& image, juce::MemoryBlock& destination) {
 }
 } // namespace
 
-void FeedbackFieldLabel::setField(juce::String text, bool required) {
-    displayText = std::move(text);
-    isRequired = required;
-    setText(displayText + (isRequired ? " (required)" : juce::String()), juce::dontSendNotification);
-    setName(displayText + (isRequired ? ", required" : juce::String()));
-    setInterceptsMouseClicks(false, false);
-}
-
-void FeedbackFieldLabel::paint(juce::Graphics& g) {
-    const juce::Font font(juce::FontOptions(14.0f, juce::Font::bold));
-    g.setFont(font);
-    g.setColour(Colours::text());
-    const auto bounds = getLocalBounds();
-    g.drawText(displayText, bounds, juce::Justification::centredLeft, false);
-    if (isRequired) {
-        const auto textWidth = juce::roundToInt(font.getStringWidthFloat(displayText));
-        g.setColour(Colours::danger());
-        g.drawText("*", bounds.withTrimmedLeft(textWidth + 4), juce::Justification::centredLeft, false);
-    }
-}
-
 FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     : OverlayComponent(configToUse.closeButtonSvg),
       juce::Thread("Feedback submission"),

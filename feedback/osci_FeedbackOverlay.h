@@ -2,16 +2,6 @@
 
 namespace osci {
 
-class FeedbackFieldLabel final : public juce::Label {
-public:
-    void setField(juce::String text, bool required);
-    void paint(juce::Graphics& g) override;
-
-private:
-    juce::String displayText;
-    bool isRequired = false;
-};
-
 struct FeedbackOverlayConfig {
     juce::String closeButtonSvg;
     juce::String settingsButtonSvg;
@@ -74,11 +64,11 @@ private:
     CardComponent attachmentsCard;
     AnimatedTextButton bugKindButton { "Bug report" };
     AnimatedTextButton featureKindButton { "Feature request" };
-    FeedbackFieldLabel emailLabel;
+    FormFieldLabel emailLabel;
     TextEditor emailEditor { "feedbackEmail" };
-    FeedbackFieldLabel titleLabel;
+    FormFieldLabel titleLabel;
     TextEditor titleEditor { "feedbackTitle" };
-    FeedbackFieldLabel descriptionLabel;
+    FormFieldLabel descriptionLabel;
     TextEditor descriptionEditor { "feedbackDescription" };
     FormValidator formValidator;
     juce::Label attachmentsHeading;
