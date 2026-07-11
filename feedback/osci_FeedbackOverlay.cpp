@@ -175,7 +175,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
     settingsButton->setComponentID("feedbackSettingsButton");
     settingsButton->setCircularBackground(true, 10);
-    settingsButton->setRotateOnHover(true);
+    settingsButton->setRotateOnHover(true, juce::MathConstants<float>::pi);
     settingsButton->setHoverColour(Colours::text());
     settingsButton->onClick = [this] { openSettings(); };
 
