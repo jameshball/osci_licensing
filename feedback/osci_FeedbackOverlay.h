@@ -46,8 +46,7 @@ private:
     void configureEditor(TextEditor& editor, juce::String name, bool multiline);
     void startSubmission();
     bool validateForm(bool focusFirstInvalid = true);
-    bool isValidEmail(juce::StringRef email) const;
-    void setEditorValid(TextEditor& editor, bool valid);
+    void updateValidationMessage(const FormValidator::Result& result);
     void addUserFiles(const std::vector<juce::File>& files);
     void chooseUserFiles();
     void removeUserScreenshot(size_t index);
@@ -81,6 +80,7 @@ private:
     TextEditor titleEditor { "feedbackTitle" };
     FeedbackFieldLabel descriptionLabel;
     TextEditor descriptionEditor { "feedbackDescription" };
+    FormValidator formValidator;
     juce::Label attachmentsHeading;
     FileDropZoneComponent dropZone;
     juce::Label attachmentSummary;
@@ -97,7 +97,6 @@ private:
     bool includeDiagnosticLog = false;
     bool includeProjectSnapshot = false;
     bool submissionActive = false;
-    bool validationAttempted = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FeedbackOverlay)
 };

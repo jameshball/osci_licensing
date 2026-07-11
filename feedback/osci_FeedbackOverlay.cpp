@@ -107,21 +107,16 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     descriptionEditor.setInputRestrictions(20000);
     descriptionEditor.setTextToShowWhenEmpty("What happened? What did you expect? Steps to reproduce are especially useful.", Colours::textSubtle());
 
-    emailEditor.onTextChange = [this] {
-        if (validationAttempted) {
-            validateForm(false);
-        }
-    };
-    titleEditor.onTextChange = [this] {
-        if (validationAttempted) {
-            validateForm(false);
-        }
-    };
-    descriptionEditor.onTextChange = [this] {
-        if (validationAttempted) {
-            validateForm(false);
-        }
-    };
+    formValidator.registerField("contactEmail", emailEditor,
+                                StringValidation().trim()
+                                    .required("Enter a contact email address.")
+                                    .email("Enter a valid contact email address."));
+    formValidator.registerField("title", titleEditor,
+                                StringValidation().trim()
+                                    .required("Add a short title for your feedback."));
+    formValidator.registerField("description", descriptionEditor,
+                                StringValidation().trim()
+                                    .required("Tell us a little more about your feedback."));
 
     configureFeedbackLabel(attachmentsHeading, "Screenshots", 17.0f, true);
     dropZone.setAccentColour(Colours::accentColor());
@@ -157,6 +152,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     errorLabel.setColour(juce::Label::textColourId, Colours::danger());
     errorLabel.setJustificationType(juce::Justification::centredLeft);
     errorLabel.setVisible(false);
+    formValidator.onValidationChanged = [this](const FormValidator::Result& result) { updateValidationMessage(result); };
 
     settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
     settingsButton->setComponentID("feedbackSettingsButton");
@@ -337,86 +333,21 @@ void FeedbackOverlay::startSubmission() {
 }
 
 bool FeedbackOverlay::validateForm(bool focusFirstInvalid) {
-    validationAttempted = true;
-    const auto emailValid = isValidEmail(emailEditor.getText().trim());
-    const auto titleValid = titleEditor.getText().trim().isNotEmpty();
-    const auto descriptionValid = descriptionEditor.getText().trim().isNotEmpty();
-    setEditorValid(emailEditor, emailValid);
-    setEditorValid(titleEditor, titleValid);
-    setEditorValid(descriptionEditor, descriptionValid);
+    return formValidator.validate(focusFirstInvalid).isValid();
+}
 
-    const auto invalidCount = static_cast<int>(!emailValid) + static_cast<int>(!titleValid) + static_cast<int>(!descriptionValid);
-    if (invalidCount == 0) {
+void FeedbackOverlay::updateValidationMessage(const FormValidator::Result& result) {
+    if (result.isValid()) {
         errorLabel.setVisible(false);
-        return true;
+        return;
     }
 
-    if (!emailValid && invalidCount == 1) {
-        showInlineError("Enter a valid contact email address.");
-    } else if (!titleValid && invalidCount == 1) {
-        showInlineError("Add a short title for your feedback.");
-    } else if (!descriptionValid && invalidCount == 1) {
-        showInlineError("Tell us a little more about your feedback.");
+    const auto* firstIssue = result.getFirstIssue();
+    if (result.getIssueCount() == 1 && firstIssue != nullptr) {
+        showInlineError(firstIssue->error.message);
     } else {
         showInlineError("Complete the highlighted required fields before sending.");
     }
-
-    if (focusFirstInvalid) {
-        if (!emailValid) {
-            emailEditor.grabKeyboardFocus();
-        } else if (!titleValid) {
-            titleEditor.grabKeyboardFocus();
-        } else {
-            descriptionEditor.grabKeyboardFocus();
-        }
-    }
-    return false;
-}
-
-bool FeedbackOverlay::isValidEmail(juce::StringRef emailRef) const {
-    const auto email = juce::String(emailRef).trim();
-    if (email.isEmpty() || email.length() > 254 || email.containsAnyOf(" \t\r\n")) {
-        return false;
-    }
-    const auto at = email.indexOfChar('@');
-    if (at <= 0 || at != email.lastIndexOfChar('@') || at >= email.length() - 1) {
-        return false;
-    }
-    const auto local = email.substring(0, at);
-    const auto domain = email.substring(at + 1);
-    if (local.length() > 64 || local.startsWithChar('.') || local.endsWithChar('.') || local.contains("..")
-        || domain.startsWithChar('.') || domain.endsWithChar('.') || domain.contains("..")) {
-        return false;
-    }
-
-    const juce::String allowedLocalPunctuation(".!#$%&'*+/=?^_`{|}~-");
-    for (const auto character : local) {
-        if (!juce::CharacterFunctions::isLetterOrDigit(character) && !allowedLocalPunctuation.containsChar(character)) {
-            return false;
-        }
-    }
-
-    const auto labels = juce::StringArray::fromTokens(domain, ".", {});
-    if (labels.size() < 2 || labels[labels.size() - 1].length() < 2) {
-        return false;
-    }
-    for (const auto& label : labels) {
-        if (label.isEmpty() || label.length() > 63 || label.startsWithChar('-') || label.endsWithChar('-')) {
-            return false;
-        }
-        for (const auto character : label) {
-            if (!juce::CharacterFunctions::isLetterOrDigit(character) && character != '-') {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void FeedbackOverlay::setEditorValid(TextEditor& editor, bool valid) {
-    editor.setColour(juce::TextEditor::outlineColourId, valid ? Colours::neutralStroke(0.18f) : Colours::danger());
-    editor.setColour(juce::TextEditor::focusedOutlineColourId, valid ? Colours::accentColor() : Colours::danger());
-    editor.repaint();
 }
 
 void FeedbackOverlay::addUserFiles(const std::vector<juce::File>& files) {
