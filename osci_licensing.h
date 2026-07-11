@@ -1,5 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <functional>
+#include <vector>
+
 /*******************************************************************************
  The block below describes the properties of this module, and is read by
  the Projucer to automatically generate project code that uses it.
@@ -15,7 +19,7 @@
   license:           GPLv3
   minimumCppStandard: 20
 
-  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography, osci_render_core
+  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography, juce_gui_basics, juce_gui_extra, osci_gui, osci_render_core
 
  END_JUCE_MODULE_DECLARATION
 
@@ -25,10 +29,15 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <juce_events/juce_events.h>
 #include <juce_cryptography/juce_cryptography.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+#include <osci_gui/osci_gui.h>
 #include <osci_render_core/osci_render_core.h>
 
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
+#include "feedback/osci_FeedbackClient.h"
+#include "feedback/osci_FeedbackOverlay.h"
 #include "state/osci_UpdateSettings.h"
 #include "license/osci_LicenseManager.h"
 #include "system/osci_HardwareInfo.h"
