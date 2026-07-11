@@ -14,12 +14,12 @@
   vendor:            jameshball
   version:           0.1.0
   name:              osci-render licensing
-  description:       Licensing and update helpers for osci-render products
+  description:       Licensing, update, and feedback helpers for osci-render products
   website:           https://osci-render.com
   license:           GPLv3
   minimumCppStandard: 20
 
-  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography, juce_gui_basics, juce_gui_extra, osci_gui, osci_render_core
+  dependencies:      juce_core, juce_data_structures, juce_events, juce_cryptography, juce_gui_basics, juce_gui_extra, juce_audio_processors, osci_gui, osci_render_core
 
  END_JUCE_MODULE_DECLARATION
 
@@ -31,12 +31,14 @@
 #include <juce_cryptography/juce_cryptography.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include <osci_gui/osci_gui.h>
 #include <osci_render_core/osci_render_core.h>
 
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
 #include "feedback/osci_FeedbackClient.h"
+#include "feedback/osci_FeedbackContextBuilder.h"
 #include "feedback/osci_FeedbackSettingsOverlay.h"
 #include "feedback/osci_FeedbackSuccessOverlay.h"
 #include "feedback/osci_FeedbackOverlay.h"
