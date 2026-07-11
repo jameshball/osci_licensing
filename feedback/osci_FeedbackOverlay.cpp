@@ -83,7 +83,6 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     includeDiagnosticLog = config.context.log.isNotEmpty();
     includeProjectSnapshot = !config.projectSnapshot.data.isEmpty() || config.projectSnapshotProvider != nullptr;
 
-    kindLabel.setField("Type", true);
     auto configureKindButton = [](juce::TextButton& button, juce::String componentID) {
         button.setComponentID(std::move(componentID));
         button.setClickingTogglesState(true);
@@ -175,7 +174,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
     settingsButton->setComponentID("feedbackSettingsButton");
     settingsButton->setCircularBackground(true, 10);
-    settingsButton->setRotateOnHover(true, juce::MathConstants<float>::pi);
+    settingsButton->setRotateOnHover(true, juce::MathConstants<float>::halfPi);
     settingsButton->setHoverColour(Colours::text());
     settingsButton->onClick = [this] { openSettings(); };
 
@@ -192,7 +191,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     };
 
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &introLabel, &kindLabel, &bugKindButton, &featureKindButton,
+             &feedbackCard, &attachmentsCard, &introLabel, &bugKindButton, &featureKindButton,
              &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
              &dropZone, &attachmentSummary, &previewContainer, &errorLabel, &progressBar, &progressLabel,
              settingsButton.get(), &submitButton }) {
@@ -224,10 +223,9 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
 
     constexpr int sectionGap = 16;
     constexpr int cardPadding = 20;
-    auto feedbackArea = contentArea.removeFromTop(366);
+    auto feedbackArea = contentArea.removeFromTop(346);
     feedbackCard.setBounds(feedbackArea);
     feedbackArea.reduce(cardPadding, cardPadding);
-    kindLabel.setBounds(feedbackArea.removeFromTop(20));
     auto kindButtons = feedbackArea.removeFromTop(42);
     const auto buttonWidth = (kindButtons.getWidth() - 10) / 2;
     bugKindButton.setBounds(kindButtons.removeFromLeft(buttonWidth));
@@ -632,7 +630,7 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 void FeedbackOverlay::showSuccess() {
     success = true;
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &kindLabel, &bugKindButton, &featureKindButton, &emailLabel, &emailEditor,
+             &feedbackCard, &attachmentsCard, &bugKindButton, &featureKindButton, &emailLabel, &emailEditor,
              &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading, &dropZone,
              &attachmentSummary, &previewContainer, settingsButton.get() }) {
         component->setVisible(false);
@@ -680,7 +678,7 @@ int FeedbackOverlay::getAttachedScreenshotCount() const {
 
 int FeedbackOverlay::getFormContentHeight() const {
     constexpr int sectionGap = 16;
-    constexpr int feedbackHeight = 366;
+    constexpr int feedbackHeight = 346;
     constexpr int attachmentsHeight = 322;
     constexpr int previewHeight = 116;
     constexpr int footerHeight = 72;
