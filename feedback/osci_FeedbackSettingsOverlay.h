@@ -25,7 +25,7 @@ private:
                          bool enabled,
                          bool available);
 
-    FeedbackCard card;
+    CardComponent card;
     jux::SwitchButton logToggle { "Include diagnostic log", false };
     juce::Label logLabel;
     juce::Label logDetailLabel;

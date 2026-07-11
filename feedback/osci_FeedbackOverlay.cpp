@@ -564,7 +564,7 @@ void FeedbackOverlay::openImagePreview(const juce::Image& image, juce::String ti
     if (!image.isValid()) {
         return;
     }
-    OverlayComponent::show(*this, std::make_unique<FeedbackImagePreviewOverlay>(config.closeButtonSvg, image, std::move(title)));
+    OverlayComponent::show(*this, std::make_unique<ImagePreviewOverlay>(config.closeButtonSvg, image, std::move(title)));
 }
 
 void FeedbackOverlay::openSettings() {

@@ -71,8 +71,8 @@ private:
     std::vector<std::unique_ptr<ImagePreviewComponent>> userScreenshotPreviews;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    FeedbackCard feedbackCard;
-    FeedbackCard attachmentsCard;
+    CardComponent feedbackCard;
+    CardComponent attachmentsCard;
     AnimatedTextButton bugKindButton { "Bug report" };
     AnimatedTextButton featureKindButton { "Feature request" };
     FeedbackFieldLabel emailLabel;
