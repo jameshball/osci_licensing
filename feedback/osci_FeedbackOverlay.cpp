@@ -145,12 +145,13 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     screenshotPreview.setComponentID("automaticScreenshotPreview");
     screenshotPreview.setCaption("App screenshot");
     screenshotPreview.setAccentColour(Colours::accentColor());
+    screenshotPreview.setMagnifierSvg(config.magnifierSvg);
     screenshotPreview.setImage(config.automaticScreenshotPreview);
     screenshotPreview.onOpenRequested = [this] { openImagePreview(config.automaticScreenshotPreview, "App Screenshot"); };
     screenshotPreview.setRemoveAction([this] {
         includeAutomaticScreenshot = false;
         updateAttachmentSummary();
-    }, "removeAutomaticScreenshot");
+    }, config.closeButtonSvg, "removeAutomaticScreenshot");
 
     configureFeedbackLabel(errorLabel, {}, 13.5f, true);
     errorLabel.setColour(juce::Label::textColourId, Colours::danger());
@@ -521,6 +522,7 @@ void FeedbackOverlay::rebuildScreenshotPreviews() {
         auto preview = std::make_unique<ImagePreviewComponent>();
         preview->setComponentID("userScreenshotPreview" + juce::String(index + 1));
         preview->setAccentColour(Colours::accentColor());
+        preview->setMagnifierSvg(config.magnifierSvg);
         preview->setImage(userScreenshotImages[index]);
         const auto title = index < userScreenshots.size() ? userScreenshots[index].filename : "Screenshot " + juce::String(index + 1);
         preview->setCaption(title);
@@ -534,7 +536,7 @@ void FeedbackOverlay::rebuildScreenshotPreviews() {
             if (safeThis != nullptr) {
                 safeThis->removeUserScreenshot(index);
             }
-        }, "removeUserScreenshot" + juce::String(index + 1));
+        }, config.closeButtonSvg, "removeUserScreenshot" + juce::String(index + 1));
         previewContainer.addAndMakeVisible(*preview);
         userScreenshotPreviews.push_back(std::move(preview));
     }

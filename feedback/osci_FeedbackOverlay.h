@@ -15,6 +15,7 @@ private:
 struct FeedbackOverlayConfig {
     juce::String closeButtonSvg;
     juce::String settingsButtonSvg;
+    juce::String magnifierSvg;
     FeedbackRequest context;
     FeedbackAttachmentData automaticScreenshot;
     juce::Image automaticScreenshotPreview;

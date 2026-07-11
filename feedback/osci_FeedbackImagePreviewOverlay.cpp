@@ -37,19 +37,23 @@ void FeedbackImagePreviewOverlay::ImageCanvas::setImage(juce::Image newImage) {
 void FeedbackImagePreviewOverlay::ImageCanvas::paint(juce::Graphics& g) {
     constexpr auto radius = 14.0f;
     auto bounds = getLocalBounds().toFloat();
-    g.setColour(Colours::surfaceSunken());
-    g.fillRoundedRectangle(bounds, radius);
-    g.setColour(Colours::neutralStroke(0.22f));
-    g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
-    if (!image.isValid()) {
-        return;
+    {
+        const juce::Graphics::ScopedSaveState saveState(g);
+        juce::Path clip;
+        clip.addRoundedRectangle(bounds, radius);
+        g.reduceClipRegion(clip);
+        drawImageCheckerboard(g, bounds.getSmallestIntegerContainer(), 16);
+
+        if (image.isValid()) {
+            const auto destination = juce::RectanglePlacement(juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize)
+                                         .appliedTo(image.getBounds().toFloat(), bounds.reduced(18.0f));
+            g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+            g.drawImage(image, destination);
+        }
     }
 
-    const auto destination = juce::RectanglePlacement(juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize)
-                                 .appliedTo(image.getBounds().toFloat(), bounds.reduced(18.0f));
-    g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-    g.setOpacity(1.0f);
-    g.drawImage(image, destination);
+    g.setColour(Colours::neutralStroke(0.22f));
+    g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
 }
 
 } // namespace osci
