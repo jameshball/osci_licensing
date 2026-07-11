@@ -83,7 +83,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     includeDiagnosticLog = config.context.log.isNotEmpty() || config.submissionProvider != nullptr;
     includeProjectSnapshot = !config.projectSnapshot.data.isEmpty() || config.submissionProvider != nullptr;
 
-    auto configureKindButton = [](juce::TextButton& button, juce::String componentID) {
+    auto configureKindButton = [](AnimatedTextButton& button, juce::String componentID) {
         button.setComponentID(std::move(componentID));
         button.setClickingTogglesState(true);
         button.setRadioGroupId(0x46656564);
@@ -96,6 +96,8 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     configureKindButton(bugKindButton, "feedbackKindBug");
     configureKindButton(featureKindButton, "feedbackKindFeature");
     bugKindButton.setToggleState(true, juce::dontSendNotification);
+    bugKindButton.snapAnimationToToggleState();
+    featureKindButton.snapAnimationToToggleState();
 
     emailLabel.setField("Contact email", true);
     configureEditor(emailEditor, "Contact email", false);

@@ -73,8 +73,8 @@ private:
     FeedbackSectionCard feedbackCard;
     FeedbackSectionCard attachmentsCard;
     juce::Label introLabel;
-    juce::TextButton bugKindButton { "Bug report" };
-    juce::TextButton featureKindButton { "Feature request" };
+    AnimatedTextButton bugKindButton { "Bug report" };
+    AnimatedTextButton featureKindButton { "Feature request" };
     FeedbackFieldLabel emailLabel;
     TextEditor emailEditor { "feedbackEmail" };
     FeedbackFieldLabel titleLabel;
