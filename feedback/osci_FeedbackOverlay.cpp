@@ -166,13 +166,6 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     errorLabel.setJustificationType(juce::Justification::centredLeft);
     errorLabel.setVisible(false);
 
-    progressBar.setName("Feedback upload progress");
-    progressBar.setComponentID("feedbackProgress");
-    progressBar.setVisible(false);
-    configureFeedbackLabel(progressLabel, {}, 13.5f);
-    progressLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
-    progressLabel.setVisible(false);
-
     settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
     settingsButton->setComponentID("feedbackSettingsButton");
     settingsButton->setCircularBackground(true, 10);
@@ -195,7 +188,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     for (auto* component : std::initializer_list<juce::Component*> {
              &feedbackCard, &attachmentsCard, &introLabel, &bugKindButton, &featureKindButton,
              &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
-             &dropZone, &attachmentSummary, &previewContainer, &errorLabel, &progressBar, &progressLabel,
+             &dropZone, &attachmentSummary, &previewContainer, &errorLabel,
              settingsButton.get(), &submitButton }) {
         addPanelContentAndMakeVisible(*component);
     }
@@ -204,8 +197,6 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     attachmentsCard.toBack();
     introLabel.setVisible(false);
     errorLabel.setVisible(false);
-    progressBar.setVisible(false);
-    progressLabel.setVisible(false);
     updateAttachmentSummary();
 }
 
@@ -279,8 +270,6 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
     settingsButton->setBounds(footer.removeFromRight(44).withSizeKeepingCentre(44, 44));
     footer.removeFromRight(18);
     errorLabel.setBounds(footer.removeFromTop(30));
-    progressLabel.setBounds(footer.removeFromTop(22));
-    progressBar.setBounds(footer.removeFromTop(10));
 }
 
 juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
@@ -290,11 +279,6 @@ juce::Point<int> FeedbackOverlay::getPreferredPanelSize() const {
 void FeedbackOverlay::run() {
     auto projectSnapshot = config.projectSnapshot;
     if (config.submissionProvider != nullptr) {
-        {
-            const juce::SpinLock::ScopedLockType lock(resultLock);
-            backgroundStatus = "Preparing report details...";
-        }
-        triggerAsyncUpdate();
         config.submissionProvider(pendingRequest, projectSnapshot, includeProjectSnapshot);
     }
     if (!includeDiagnosticLog) {
@@ -305,11 +289,6 @@ void FeedbackOverlay::run() {
     if (includeAutomaticScreenshot && config.automaticScreenshotPreview.isValid()) {
         auto automaticScreenshot = config.automaticScreenshot;
         if (automaticScreenshot.data.isEmpty()) {
-            {
-                const juce::SpinLock::ScopedLockType lock(resultLock);
-                backgroundStatus = "Preparing app screenshot...";
-            }
-            triggerAsyncUpdate();
             encodePng(config.automaticScreenshotPreview, automaticScreenshot.data);
         }
         if (!automaticScreenshot.data.isEmpty()) {
@@ -327,14 +306,7 @@ void FeedbackOverlay::run() {
     const auto result = client.submit(
         pendingRequest,
         newResponse,
-        [this](float progress, juce::String status) {
-            backgroundProgress.store(progress, std::memory_order_relaxed);
-            {
-                const juce::SpinLock::ScopedLockType lock(resultLock);
-                backgroundStatus = std::move(status);
-            }
-            triggerAsyncUpdate();
-        },
+        {},
         &cancellationRequested);
     {
         const juce::SpinLock::ScopedLockType lock(resultLock);
@@ -346,11 +318,6 @@ void FeedbackOverlay::run() {
 }
 
 void FeedbackOverlay::handleAsyncUpdate() {
-    progressValue = backgroundProgress.load(std::memory_order_relaxed);
-    {
-        const juce::SpinLock::ScopedLockType lock(resultLock);
-        progressLabel.setText(backgroundStatus, juce::dontSendNotification);
-    }
     if (!submissionFinished.load(std::memory_order_acquire)) {
         return;
     }
@@ -358,8 +325,6 @@ void FeedbackOverlay::handleAsyncUpdate() {
     submissionActive = false;
     setDismissible(true);
     setFormEnabled(true);
-    progressBar.setVisible(false);
-    progressLabel.setVisible(false);
     juce::Result result = juce::Result::ok();
     {
         const juce::SpinLock::ScopedLockType lock(resultLock);
@@ -398,12 +363,7 @@ void FeedbackOverlay::startSubmission() {
     submissionActive = true;
     submissionFinished.store(false, std::memory_order_release);
     cancellationRequested.store(false, std::memory_order_relaxed);
-    backgroundProgress.store(0.0f, std::memory_order_relaxed);
     errorLabel.setVisible(false);
-    progressValue = 0.0;
-    progressLabel.setText("Preparing feedback...", juce::dontSendNotification);
-    progressLabel.setVisible(true);
-    progressBar.setVisible(true);
     submitButton.setButtonText("Sending...");
     setDismissible(false);
     setFormEnabled(false);

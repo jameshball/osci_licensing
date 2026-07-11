@@ -88,15 +88,10 @@ private:
     ImagePreviewComponent screenshotPreview;
 
     juce::Label errorLabel;
-    double progressValue = 0.0;
-    juce::ProgressBar progressBar { progressValue };
-    juce::Label progressLabel;
     std::unique_ptr<SvgButton> settingsButton;
     juce::TextButton submitButton { "Send Feedback" };
 
     juce::SpinLock resultLock;
-    juce::String backgroundStatus;
-    std::atomic<float> backgroundProgress { 0.0f };
     std::atomic<bool> cancellationRequested { false };
     std::atomic<bool> submissionFinished { false };
     bool includeAutomaticScreenshot = false;
