@@ -31,7 +31,6 @@ private:
                          bool available);
 
     SettingsCard card;
-    juce::Label optionalHeading;
     jux::SwitchButton logToggle { "Include diagnostic log", false };
     juce::Label logLabel;
     juce::Label logDetailLabel;

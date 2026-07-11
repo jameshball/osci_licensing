@@ -17,24 +17,9 @@ private:
     bool isRequired = false;
 };
 
-class FeedbackSettingsButton final : public juce::Component {
-public:
-    explicit FeedbackSettingsButton(juce::String settingsSvg);
-    void paint(juce::Graphics& g) override;
-    void resized() override;
-
-    std::function<void()> onClick;
-
-private:
-    SvgButton iconButton;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FeedbackSettingsButton)
-};
-
 struct FeedbackOverlayConfig {
     juce::String closeButtonSvg;
     juce::String settingsButtonSvg;
-    juce::String productDisplayName;
     FeedbackRequest context;
     FeedbackAttachmentData automaticScreenshot;
     juce::Image automaticScreenshotPreview;
@@ -87,9 +72,9 @@ private:
     FeedbackSectionCard feedbackCard;
     FeedbackSectionCard attachmentsCard;
     juce::Label introLabel;
-    juce::Label feedbackHeading;
     FeedbackFieldLabel kindLabel;
-    juce::ComboBox kindBox;
+    juce::TextButton bugKindButton { "Bug report" };
+    juce::TextButton featureKindButton { "Feature request" };
     FeedbackFieldLabel emailLabel;
     TextEditor emailEditor { "feedbackEmail" };
     FeedbackFieldLabel titleLabel;
@@ -106,7 +91,7 @@ private:
     double progressValue = 0.0;
     juce::ProgressBar progressBar { progressValue };
     juce::Label progressLabel;
-    std::unique_ptr<FeedbackSettingsButton> settingsButton;
+    std::unique_ptr<SvgButton> settingsButton;
     juce::TextButton submitButton { "Send Feedback" };
 
     juce::SpinLock resultLock;

@@ -54,34 +54,6 @@ void FeedbackFieldLabel::paint(juce::Graphics& g) {
     }
 }
 
-FeedbackSettingsButton::FeedbackSettingsButton(juce::String settingsSvg)
-    : iconButton("Report settings", std::move(settingsSvg), Colours::textMuted(), Colours::text()) {
-    setName("Report settings");
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
-    setInterceptsMouseClicks(false, true);
-    iconButton.setName("Report settings");
-    iconButton.setComponentID("feedbackSettingsButton");
-    iconButton.setTooltip("Report settings");
-    iconButton.onClick = [this] {
-        if (onClick != nullptr) {
-            onClick();
-        }
-    };
-    addAndMakeVisible(iconButton);
-}
-
-void FeedbackSettingsButton::paint(juce::Graphics& g) {
-    auto bounds = getLocalBounds().toFloat().reduced(0.75f);
-    g.setColour(Colours::neutralFill(0.08f));
-    g.fillEllipse(bounds);
-    g.setColour(Colours::neutralStroke(0.28f));
-    g.drawEllipse(bounds, 1.25f);
-}
-
-void FeedbackSettingsButton::resized() {
-    iconButton.setBounds(getLocalBounds().reduced(10));
-}
-
 FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     : OverlayComponent(configToUse.closeButtonSvg),
       juce::Thread("Feedback submission"),
@@ -96,23 +68,26 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     includeDiagnosticLog = config.context.log.isNotEmpty();
     includeProjectSnapshot = !config.projectSnapshot.data.isEmpty();
 
-    configureFeedbackLabel(introLabel,
-                           "Tell us what happened or what would make " + config.productDisplayName + " better.\n"
-                           "Technical app and system details are included automatically; optional diagnostics remain under your control.",
-                           14.5f);
-    introLabel.setJustificationType(juce::Justification::topLeft);
-
-    configureFeedbackLabel(feedbackHeading, "Your feedback", 17.0f, true);
     kindLabel.setField("Type", true);
-    kindBox.setName("Feedback type, required");
-    kindBox.setComponentID("feedbackKind");
-    kindBox.addItem("Bug report", 1);
-    kindBox.addItem("Feature request", 2);
-    kindBox.setSelectedId(1, juce::dontSendNotification);
+    auto configureKindButton = [](juce::TextButton& button, juce::String componentID) {
+        button.setComponentID(std::move(componentID));
+        button.setClickingTogglesState(true);
+        button.setRadioGroupId(0x46656564);
+        button.setColour(juce::TextButton::buttonColourId, Colours::neutralFill(0.10f));
+        button.setColour(juce::TextButton::buttonOnColourId, Colours::accentColor());
+        button.setColour(juce::TextButton::textColourOffId, Colours::text());
+        button.setColour(juce::TextButton::textColourOnId, Colours::textOnAccent());
+        button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    };
+    configureKindButton(bugKindButton, "feedbackKindBug");
+    configureKindButton(featureKindButton, "feedbackKindFeature");
+    bugKindButton.setToggleState(true, juce::dontSendNotification);
 
     emailLabel.setField("Contact email", true);
     configureEditor(emailEditor, "Contact email", false);
     emailEditor.setInputRestrictions(254);
+    emailEditor.setKeyboardType(juce::TextInputTarget::emailAddressKeyboard);
+    emailEditor.setTextToShowWhenEmpty("you@example.com", Colours::textSubtle());
     emailEditor.setText(config.context.contactEmail, false);
 
     titleLabel.setField("Title", true);
@@ -126,25 +101,25 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     descriptionEditor.setTextToShowWhenEmpty("What happened? What did you expect? Steps to reproduce are especially useful.", Colours::textSubtle());
 
     emailEditor.onTextChange = [this] {
-        if (validationAttempted && isValidEmail(emailEditor.getText().trim())) {
-            setEditorValid(emailEditor, true);
+        if (validationAttempted) {
+            validateForm(false);
         }
     };
     titleEditor.onTextChange = [this] {
-        if (validationAttempted && titleEditor.getText().trim().isNotEmpty()) {
-            setEditorValid(titleEditor, true);
+        if (validationAttempted) {
+            validateForm(false);
         }
     };
     descriptionEditor.onTextChange = [this] {
-        if (validationAttempted && descriptionEditor.getText().trim().isNotEmpty()) {
-            setEditorValid(descriptionEditor, true);
+        if (validationAttempted) {
+            validateForm(false);
         }
     };
 
     configureFeedbackLabel(attachmentsHeading, "Screenshots", 17.0f, true);
     dropZone.setAccentColour(Colours::accentColor());
     dropZone.setTitle("Drop screenshots here");
-    dropZone.setSubtitle("PNG or JPEG • up to four images • 10 MiB each");
+    dropZone.setSubtitle("PNG or JPEG, up to four images, 10 MiB each");
     dropZone.setActionText("Choose Images...");
     dropZone.setAcceptedDescription("PNG or JPEG image");
     dropZone.setIsFileAccepted([](const juce::File& file) {
@@ -182,7 +157,11 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     progressLabel.setColour(juce::Label::textColourId, Colours::textSubtle());
     progressLabel.setVisible(false);
 
-    settingsButton = std::make_unique<FeedbackSettingsButton>(config.settingsButtonSvg);
+    settingsButton = std::make_unique<SvgButton>("Report settings", config.settingsButtonSvg, Colours::text());
+    settingsButton->setComponentID("feedbackSettingsButton");
+    settingsButton->setCircularBackground(true, 10);
+    settingsButton->setRotateOnHover(true);
+    settingsButton->setHoverColour(Colours::text());
     settingsButton->onClick = [this] { openSettings(); };
 
     submitButton.setName("Send Feedback");
@@ -198,8 +177,8 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     };
 
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &introLabel, &feedbackHeading, &kindLabel, &kindBox, &emailLabel,
-             &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
+             &feedbackCard, &attachmentsCard, &introLabel, &kindLabel, &bugKindButton, &featureKindButton,
+             &emailLabel, &emailEditor, &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading,
              &dropZone, &attachmentSummary, &previewContainer, &errorLabel, &progressBar, &progressLabel,
              settingsButton.get(), &submitButton }) {
         addPanelContentAndMakeVisible(*component);
@@ -207,6 +186,10 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
 
     feedbackCard.toBack();
     attachmentsCard.toBack();
+    introLabel.setVisible(false);
+    errorLabel.setVisible(false);
+    progressBar.setVisible(false);
+    progressLabel.setVisible(false);
     updateAttachmentSummary();
 }
 
@@ -226,27 +209,24 @@ void FeedbackOverlay::resizeContent(juce::Rectangle<int> contentArea) {
 
     constexpr int sectionGap = 16;
     constexpr int cardPadding = 20;
-    introLabel.setBounds(contentArea.removeFromTop(42));
-    contentArea.removeFromTop(sectionGap);
-
-    auto feedbackArea = contentArea.removeFromTop(350);
+    auto feedbackArea = contentArea.removeFromTop(366);
     feedbackCard.setBounds(feedbackArea);
     feedbackArea.reduce(cardPadding, cardPadding);
-    feedbackHeading.setBounds(feedbackArea.removeFromTop(26));
-    feedbackArea.removeFromTop(12);
-    auto firstRow = feedbackArea.removeFromTop(62);
-    auto kindArea = firstRow.removeFromLeft(220);
-    kindLabel.setBounds(kindArea.removeFromTop(20));
-    kindBox.setBounds(kindArea.removeFromTop(42));
-    firstRow.removeFromLeft(16);
-    emailLabel.setBounds(firstRow.removeFromTop(20));
-    emailEditor.setBounds(firstRow.removeFromTop(42));
-    feedbackArea.removeFromTop(12);
+    kindLabel.setBounds(feedbackArea.removeFromTop(20));
+    auto kindButtons = feedbackArea.removeFromTop(42);
+    const auto buttonWidth = (kindButtons.getWidth() - 10) / 2;
+    bugKindButton.setBounds(kindButtons.removeFromLeft(buttonWidth));
+    kindButtons.removeFromLeft(10);
+    featureKindButton.setBounds(kindButtons);
+    feedbackArea.removeFromTop(10);
+    emailLabel.setBounds(feedbackArea.removeFromTop(20));
+    emailEditor.setBounds(feedbackArea.removeFromTop(42));
+    feedbackArea.removeFromTop(10);
     titleLabel.setBounds(feedbackArea.removeFromTop(20));
     titleEditor.setBounds(feedbackArea.removeFromTop(42));
-    feedbackArea.removeFromTop(12);
+    feedbackArea.removeFromTop(10);
     descriptionLabel.setBounds(feedbackArea.removeFromTop(20));
-    descriptionEditor.setBounds(feedbackArea.removeFromTop(104));
+    descriptionEditor.setBounds(feedbackArea.removeFromTop(90));
     contentArea.removeFromTop(sectionGap);
 
     const auto hasPreviews = getAttachedScreenshotCount() > 0;
@@ -360,7 +340,7 @@ void FeedbackOverlay::startSubmission() {
         return;
     }
     pendingRequest = config.context;
-    pendingRequest.kind = kindBox.getSelectedId() == 2 ? FeedbackKind::featureRequest : FeedbackKind::bug;
+    pendingRequest.kind = featureKindButton.getToggleState() ? FeedbackKind::featureRequest : FeedbackKind::bug;
     pendingRequest.title = titleEditor.getText().trim();
     pendingRequest.description = descriptionEditor.getText().trim();
     pendingRequest.contactEmail = emailEditor.getText().trim();
@@ -430,16 +410,42 @@ bool FeedbackOverlay::validateForm(bool focusFirstInvalid) {
 
 bool FeedbackOverlay::isValidEmail(juce::StringRef emailRef) const {
     const auto email = juce::String(emailRef).trim();
-    if (email.containsAnyOf(" \t\r\n") || email.contains("..")) {
+    if (email.isEmpty() || email.length() > 254 || email.containsAnyOf(" \t\r\n")) {
         return false;
     }
     const auto at = email.indexOfChar('@');
     if (at <= 0 || at != email.lastIndexOfChar('@') || at >= email.length() - 1) {
         return false;
     }
+    const auto local = email.substring(0, at);
     const auto domain = email.substring(at + 1);
-    const auto dot = domain.lastIndexOfChar('.');
-    return dot > 0 && dot < domain.length() - 1;
+    if (local.length() > 64 || local.startsWithChar('.') || local.endsWithChar('.') || local.contains("..")
+        || domain.startsWithChar('.') || domain.endsWithChar('.') || domain.contains("..")) {
+        return false;
+    }
+
+    const juce::String allowedLocalPunctuation(".!#$%&'*+/=?^_`{|}~-");
+    for (const auto character : local) {
+        if (!juce::CharacterFunctions::isLetterOrDigit(character) && !allowedLocalPunctuation.containsChar(character)) {
+            return false;
+        }
+    }
+
+    const auto labels = juce::StringArray::fromTokens(domain, ".", {});
+    if (labels.size() < 2 || labels[labels.size() - 1].length() < 2) {
+        return false;
+    }
+    for (const auto& label : labels) {
+        if (label.isEmpty() || label.length() > 63 || label.startsWithChar('-') || label.endsWithChar('-')) {
+            return false;
+        }
+        for (const auto character : label) {
+            if (!juce::CharacterFunctions::isLetterOrDigit(character) && character != '-') {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 void FeedbackOverlay::setEditorValid(TextEditor& editor, bool valid) {
@@ -530,7 +536,11 @@ void FeedbackOverlay::updateAttachmentSummary() {
         }
         attachmentSummary.setText(juce::String(count) + (count == 1 ? " screenshot attached: " : " screenshots attached: ") + names,
                                   juce::dontSendNotification);
-        dropZone.setStatus(FileDropZoneComponent::Status::success, juce::String(count) + " ready");
+        if (userScreenshots.empty()) {
+            dropZone.setStatus(FileDropZoneComponent::Status::empty);
+        } else {
+            dropZone.setStatus(FileDropZoneComponent::Status::success, juce::String(userScreenshots.size()) + " ready");
+        }
     }
     requestOverlayLayout();
 }
@@ -569,7 +579,7 @@ void FeedbackOverlay::rebuildScreenshotPreviews() {
 
 void FeedbackOverlay::setFormEnabled(bool enabled) {
     for (auto* component : std::initializer_list<juce::Component*> {
-             &kindBox, &emailEditor, &titleEditor, &descriptionEditor, &dropZone, &previewContainer,
+             &bugKindButton, &featureKindButton, &emailEditor, &titleEditor, &descriptionEditor, &dropZone, &previewContainer,
              settingsButton.get(), &submitButton }) {
         component->setEnabled(enabled);
     }
@@ -583,11 +593,12 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 void FeedbackOverlay::showSuccess() {
     success = true;
     for (auto* component : std::initializer_list<juce::Component*> {
-             &feedbackCard, &attachmentsCard, &feedbackHeading, &kindLabel, &kindBox, &emailLabel, &emailEditor,
+             &feedbackCard, &attachmentsCard, &kindLabel, &bugKindButton, &featureKindButton, &emailLabel, &emailEditor,
              &titleLabel, &titleEditor, &descriptionLabel, &descriptionEditor, &attachmentsHeading, &dropZone,
              &attachmentSummary, &previewContainer, settingsButton.get() }) {
         component->setVisible(false);
     }
+    introLabel.setVisible(true);
     introLabel.setText("Thank you. Your feedback has been sent.\n\nReference " + response.reference
                        + "\n\nKeep this reference if you contact support about the report.",
                        juce::dontSendNotification);
@@ -629,13 +640,12 @@ int FeedbackOverlay::getAttachedScreenshotCount() const {
 }
 
 int FeedbackOverlay::getFormContentHeight() const {
-    constexpr int introHeight = 42;
     constexpr int sectionGap = 16;
-    constexpr int feedbackHeight = 350;
+    constexpr int feedbackHeight = 366;
     constexpr int attachmentsHeight = 322;
     constexpr int previewHeight = 116;
     constexpr int footerHeight = 72;
-    return introHeight + sectionGap + feedbackHeight + sectionGap + attachmentsHeight
+    return feedbackHeight + sectionGap + attachmentsHeight
         + (getAttachedScreenshotCount() > 0 ? previewHeight : 0) + sectionGap + footerHeight;
 }
 

@@ -169,7 +169,7 @@ juce::Result FeedbackClient::uploadAttachment(const PreparedUpload& upload,
         }
         int statusCode = 0;
         auto url = juce::URL(upload.url).withPOSTData(attachment.data);
-        auto stream = url.createInputStream(juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inPostData)
+        auto stream = url.createInputStream(juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                                                 .withConnectionTimeoutMs(config.timeoutMs)
                                                 .withStatusCode(&statusCode)
                                                 .withHttpRequestCmd(upload.method)
