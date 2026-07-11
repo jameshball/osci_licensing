@@ -81,8 +81,8 @@ void FeedbackSettingsOverlay::resizeContent(juce::Rectangle<int> contentArea) {
                            jux::SwitchButton& toggle,
                            juce::Label& label,
                            juce::Label& detailLabel) {
-        toggle.setBounds(row.removeFromLeft(44).withSizeKeepingCentre(44, 32));
-        row.removeFromLeft(6);
+        toggle.setBounds(row.removeFromLeft(30).withSizeKeepingCentre(30, 32));
+        row.removeFromLeft(2);
         auto textArea = row.withTrimmedTop(2).withTrimmedBottom(2);
         label.setBounds(textArea.removeFromTop(20));
         detailLabel.setBounds(textArea);
