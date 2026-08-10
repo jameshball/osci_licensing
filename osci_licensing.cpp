@@ -18,3 +18,5 @@
 #include "update/osci_Downloader.cpp"
 #include "update/osci_PendingInstall.cpp"
 #include "update/osci_InstallerLauncher.cpp"
+#include "update/osci_LinuxInstallSettings.cpp"
+#include "update/osci_LinuxInstaller.cpp"

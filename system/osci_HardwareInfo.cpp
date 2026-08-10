@@ -14,8 +14,10 @@ juce::String HardwareInfo::getCurrentPlatform()
 #elif JUCE_LINUX
    #if JUCE_ARM && JUCE_64BIT
     return "linux-arm64";
-   #else
+   #elif JUCE_INTEL && JUCE_64BIT
     return "linux-x86_64";
+   #else
+    return "unknown";
    #endif
 #else
     return "unknown";
