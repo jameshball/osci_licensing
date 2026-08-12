@@ -20,3 +20,5 @@
 #include "update/osci_InstallerLauncher.cpp"
 #include "update/osci_LinuxInstallSettings.cpp"
 #include "update/osci_LinuxInstaller.cpp"
+#include "update/osci_UpdateInstaller.cpp"
+#include "update/osci_InstallPrompt.cpp"

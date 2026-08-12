@@ -53,3 +53,5 @@
 #include "update/osci_InstallerLauncher.h"
 #include "update/osci_LinuxInstallSettings.h"
 #include "update/osci_LinuxInstaller.h"
+#include "update/osci_UpdateInstaller.h"
+#include "update/osci_InstallPrompt.h"
