@@ -39,7 +39,6 @@ void InstallPrompt::showConfirmation (Options options) {
             auto cancelled = std::make_shared<std::function<void()>> (std::move (options.onCancelled));
             if (hasParent) {
                 ErrorOverlay::Options overlayOptions;
-                overlayOptions.closeButtonSvg = std::move (options.closeButtonSvg);
                 overlayOptions.title = "Install Update";
                 overlayOptions.message = message;
                 overlayOptions.icon = ErrorOverlay::Icon::Warning;
@@ -77,12 +76,10 @@ void InstallPrompt::showConfirmation (Options options) {
 }
 
 void InstallPrompt::showError (juce::Component* parent,
-                               juce::String closeButtonSvg,
                                juce::StringRef title,
                                juce::StringRef message) {
     if (parent != nullptr) {
         ErrorOverlay::Options options;
-        options.closeButtonSvg = std::move (closeButtonSvg);
         options.title = title;
         options.message = message;
         options.icon = ErrorOverlay::Icon::Error;

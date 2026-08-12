@@ -11,8 +11,7 @@ void configureSuccessLabel(juce::Label& label, juce::String text, float size, bo
 }
 } // namespace
 
-FeedbackSuccessOverlay::FeedbackSuccessOverlay(juce::String closeButtonSvg, juce::String reference)
-    : OverlayComponent(std::move(closeButtonSvg)) {
+FeedbackSuccessOverlay::FeedbackSuccessOverlay(juce::String reference) {
     setName("Feedback sent");
     setComponentID("feedbackSuccessOverlay");
     setOverlayTitle("Feedback Sent");

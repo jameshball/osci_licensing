@@ -4,7 +4,7 @@ namespace osci {
 
 class FeedbackSuccessOverlay final : public OverlayComponent {
 public:
-    FeedbackSuccessOverlay(juce::String closeButtonSvg, juce::String reference);
+    explicit FeedbackSuccessOverlay(juce::String reference);
 
 protected:
     void resizeContent(juce::Rectangle<int> contentArea) override;

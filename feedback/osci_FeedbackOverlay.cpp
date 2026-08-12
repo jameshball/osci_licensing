@@ -40,8 +40,7 @@ bool encodePng(const juce::Image& image, juce::MemoryBlock& destination) {
 } // namespace
 
 FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
-    : OverlayComponent(configToUse.closeButtonSvg),
-      juce::Thread("Feedback submission"),
+    : juce::Thread("Feedback submission"),
       config(std::move(configToUse)),
       client(config.backend) {
     setName("Feedback");
@@ -125,7 +124,7 @@ FeedbackOverlay::FeedbackOverlay(FeedbackOverlayConfig configToUse)
     screenshotPreview.setRemoveAction([this] {
         includeAutomaticScreenshot = false;
         updateAttachmentSummary();
-    }, config.closeButtonSvg, "removeAutomaticScreenshot");
+    }, "removeAutomaticScreenshot");
 
     configureFeedbackLabel(errorLabel, {}, 13.5f, true);
     errorLabel.setColour(juce::Label::textColourId, Colours::danger());
@@ -446,7 +445,7 @@ void FeedbackOverlay::rebuildScreenshotPreviews() {
             if (safeThis != nullptr) {
                 safeThis->removeUserScreenshot(index);
             }
-        }, config.closeButtonSvg, "removeUserScreenshot" + juce::String(index + 1));
+        }, "removeUserScreenshot" + juce::String(index + 1));
         previewContainer.addAndMakeVisible(*preview);
         userScreenshotPreviews.push_back(std::move(preview));
     }
@@ -467,14 +466,14 @@ void FeedbackOverlay::showInlineError(juce::String message) {
 }
 
 void FeedbackOverlay::showSuccess() {
-    replaceWith(std::make_unique<FeedbackSuccessOverlay>(config.closeButtonSvg, response.reference));
+    replaceWith(std::make_unique<FeedbackSuccessOverlay>(response.reference));
 }
 
 void FeedbackOverlay::openImagePreview(const juce::Image& image, juce::String title) {
     if (!image.isValid()) {
         return;
     }
-    OverlayComponent::show(*this, std::make_unique<ImagePreviewOverlay>(config.closeButtonSvg, image, std::move(title)));
+    OverlayComponent::show(*this, std::make_unique<ImagePreviewOverlay>(image, std::move(title)));
 }
 
 void FeedbackOverlay::openSettings() {
@@ -482,7 +481,6 @@ void FeedbackOverlay::openSettings() {
     OverlayComponent::show(
         *this,
         std::make_unique<FeedbackSettingsOverlay>(
-            config.closeButtonSvg,
             includeDiagnosticLog,
             config.context.log.isNotEmpty() || config.submissionProvider != nullptr,
             includeProjectSnapshot,

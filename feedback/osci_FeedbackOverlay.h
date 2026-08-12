@@ -3,7 +3,6 @@
 namespace osci {
 
 struct FeedbackOverlayConfig {
-    juce::String closeButtonSvg;
     juce::String settingsButtonSvg;
     juce::String magnifierSvg;
     FeedbackRequest context;

@@ -11,14 +11,12 @@ void configureSettingsLabel(juce::Label& label, juce::String text, float size, b
 }
 } // namespace
 
-FeedbackSettingsOverlay::FeedbackSettingsOverlay(juce::String closeButtonSvg,
-                                                 bool includeLog,
+FeedbackSettingsOverlay::FeedbackSettingsOverlay(bool includeLog,
                                                  bool logAvailable,
                                                  bool includeProject,
                                                  bool projectAvailable,
                                                  std::function<void(bool, bool)> settingsChanged)
-    : OverlayComponent(std::move(closeButtonSvg)),
-      onSettingsChanged(std::move(settingsChanged)),
+    : onSettingsChanged(std::move(settingsChanged)),
       logIsAvailable(logAvailable),
       projectIsAvailable(projectAvailable) {
     setName("Feedback settings");

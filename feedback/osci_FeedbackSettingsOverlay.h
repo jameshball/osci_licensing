@@ -4,8 +4,7 @@ namespace osci {
 
 class FeedbackSettingsOverlay final : public OverlayComponent {
 public:
-    FeedbackSettingsOverlay(juce::String closeButtonSvg,
-                            bool includeLog,
+    FeedbackSettingsOverlay(bool includeLog,
                             bool logAvailable,
                             bool includeProject,
                             bool projectAvailable,
