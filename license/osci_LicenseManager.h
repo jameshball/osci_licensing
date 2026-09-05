@@ -1,5 +1,7 @@
 #pragma once
 
+#include <future>
+
 namespace osci
 {
 
@@ -34,6 +36,7 @@ public:
     juce::Result activate (juce::StringRef licenseKey);
     juce::Result refreshNow();
     void scheduleBackgroundRefresh();
+    void runBackgroundTask(std::function<void()> task);
     void deactivate();
 
     juce::ValueTree getStateForUi() const;
@@ -48,11 +51,17 @@ private:
     BackendClient backend;
     mutable osci::SettingsStore settings;
 
+    // Token publication/removal includes disk I/O; keep it outside the short state lock.
+    juce::CriticalSection tokenWriteLock;
+    std::atomic<uint64_t> operationGeneration{0};
     mutable juce::SpinLock stateLock;
     Status currentStatus = Status::Free;
     juce::String cachedToken;
     std::optional<LicenseTokenPayload> cachedPayload;
+    // Destroyed first, so licensing tasks finish before their state is released.
+    std::vector<std::future<void>> backgroundTasks;
 
+    juce::Result activate(juce::StringRef licenseKey, uint64_t generation);
     void setStateFromValidation (const LicenseTokenValidation& validation, juce::String token);
     void clearCachedState();
     static juce::String statusToString (Status status);

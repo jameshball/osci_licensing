@@ -38,8 +38,8 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         return juce::Result::fail ("Could not create download directory");
     }
 
-    auto target = targetFileFor (version);
-    target.deleteFile();
+    const auto target = targetFileFor(version);
+    juce::TemporaryFile temporary(target);
 
     int statusCode = 0;
     auto stream = juce::URL (downloadUrl).createInputStream (
@@ -55,9 +55,10 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         return juce::Result::fail ("Download server returned HTTP " + juce::String (statusCode) + ".");
     }
 
-    juce::FileOutputStream output (target);
-    if (!output.openedOk())
-        return juce::Result::fail ("Could not write download file");
+    auto output = temporary.getFile().createOutputStream();
+    if (output == nullptr || !output->openedOk()) {
+        return juce::Result::fail("Could not write download file");
+    }
 
     constexpr int bufferSize = 64 * 1024;
     // Hard cap: refuse downloads larger than 1 GB so a buggy or hostile
@@ -81,14 +82,12 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
             break;
         }
 
-        if (!output.write (buffer.get(), static_cast<size_t> (bytesRead))) {
+        if (!output->write(buffer.get(), static_cast<size_t>(bytesRead))) {
             return juce::Result::fail ("Could not write download file");
         }
 
         downloadedBytes += bytesRead;
         if (downloadedBytes > sizeCap) {
-            output.flush();
-            target.deleteFile();
             return juce::Result::fail ("Download exceeded the maximum allowed size");
         }
 
@@ -98,17 +97,24 @@ juce::Result Downloader::downloadAndVerify (const VersionInfo& version,
         }
     }
 
-    output.flush();
+    output->flush();
 
-    const auto actualSha256 = fileSha256Hex (target);
+    if (output->getStatus().failed()) {
+        return output->getStatus();
+    }
+    output.reset();
+
+    const auto actualSha256 = fileSha256Hex(temporary.getFile());
     if (actualSha256.isEmpty()) {
-        target.deleteFile();
         return juce::Result::fail ("Could not read downloaded file for SHA-256 verification");
     }
 
     if (actualSha256 != version.sha256.toLowerCase()) {
-        target.deleteFile();
         return juce::Result::fail ("Downloaded file SHA-256 does not match manifest");
+    }
+
+    if (!temporary.overwriteTargetFileWithTemporary()) {
+        return juce::Result::fail("Could not save verified download file");
     }
 
     downloadedFile = target;
@@ -119,15 +125,12 @@ juce::File Downloader::getDownloadedFile() const {
     return downloadedFile;
 }
 
-juce::File Downloader::targetFileFor (const VersionInfo& version) const {
-    if (version.artifactKind == "binary") {
-        const auto filename = version.product + "-" + version.semver + "-" + version.platform;
-        return config.downloadDirectory.getChildFile (filename.replaceCharacter ('/', '-'));
+juce::File Downloader::targetFileFor(const VersionInfo& version) const {
+    auto filename = version.product + "-" + version.semver + "-" + version.platform + "-" + version.sha256.toLowerCase();
+    if (version.artifactKind != "binary") {
+        filename += "." + (version.artifactKind.isNotEmpty() ? version.artifactKind : "bin");
     }
-
-    const auto extension = version.artifactKind.isNotEmpty() ? version.artifactKind : "bin";
-    const auto filename = version.product + "-" + version.semver + "-" + version.platform + "." + extension;
-    return config.downloadDirectory.getChildFile (filename.replaceCharacter ('/', '-'));
+    return config.downloadDirectory.getChildFile(juce::File::createLegalFileName(filename));
 }
 
 } // namespace osci
