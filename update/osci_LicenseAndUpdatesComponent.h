@@ -837,7 +837,7 @@ private:
     void runAsync (juce::String busyText,
                    NoticeTarget noticeTarget,
                    std::function<juce::Result()> work,
-                   std::function<void()> onSuccess = {}) {
+                   std::function<void()> onSuccess = {}, LicenseManager* workOwner = nullptr) {
         if (busy) {
             return;
         }
@@ -846,7 +846,7 @@ private:
         auto result = std::make_shared<juce::Result> (juce::Result::ok());
         auto safeThis = juce::Component::SafePointer<LicenseAndUpdatesComponent> (this);
 
-        juce::Thread::launch ([safeThis, result, work = std::move (work), onSuccess = std::move (onSuccess), noticeTarget] () mutable {
+        auto task = [safeThis, result, work = std::move (work), onSuccess = std::move (onSuccess), noticeTarget] () mutable {
             *result = work();
 
             juce::MessageManager::callAsync ([safeThis, result, onSuccess = std::move (onSuccess), noticeTarget] () mutable {
@@ -865,7 +865,12 @@ private:
 
                 safeThis->refreshState();
             });
-        });
+        };
+        if (workOwner != nullptr) {
+            workOwner->runBackgroundTask(std::move(task));
+        } else {
+            juce::Thread::launch(std::move(task));
+        }
     }
 
     void refreshCachedLicenseIfNeeded() {
@@ -890,7 +895,7 @@ private:
                   },
                   [this] {
                       setNotice (NoticeTarget::License, "License refreshed.", NoticeKind::Success);
-                  });
+                  }, &manager);
     }
 
     void activateLicense() {
@@ -913,7 +918,7 @@ private:
                       licenseKeyRevealed = false;
                       licenseCard.clearEnteredLicenseKey();
                       setNotice (NoticeTarget::License, "License activated.", NoticeKind::Success);
-                  });
+                  }, &manager);
     }
 
     void confirmDeactivateLicense() {

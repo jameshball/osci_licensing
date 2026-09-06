@@ -33,8 +33,8 @@ bool LicenseManager::hasPremium (const juce::String& featureGroup) const noexcep
            && cachedPayload.has_value() && cachedPayload->isPremium();
 }
 
-juce::Result LicenseManager::loadCachedToken()
-{
+juce::Result LicenseManager::loadCachedToken() {
+    const juce::ScopedLock tokenLock(tokenWriteLock);
     settings.reload();
 
     const auto token = settings.getString (getTokenSettingsKey()).trim();
@@ -47,6 +47,7 @@ juce::Result LicenseManager::loadCachedToken()
     const auto validation = LicenseToken::validate (token, juce::Time::getCurrentTime(), config.offlineGrace);
     if (validation.result.failed())
     {
+        clearCachedState();
         if (auto payload = LicenseToken::inspectUnverified (token))
         {
             const juce::SpinLock::ScopedLockType lock (stateLock);
@@ -62,8 +63,11 @@ juce::Result LicenseManager::loadCachedToken()
     return juce::Result::ok();
 }
 
-juce::Result LicenseManager::activate (juce::StringRef licenseKey)
-{
+juce::Result LicenseManager::activate(juce::StringRef licenseKey) {
+    return activate(licenseKey, operationGeneration.load());
+}
+
+juce::Result LicenseManager::activate(juce::StringRef licenseKey, uint64_t generation) {
     ActivationResponse activation;
     const auto activationResult = backend.activateLicense (licenseKey, config.productSlug, activation);
     if (activationResult.failed()) {
@@ -75,6 +79,11 @@ juce::Result LicenseManager::activate (juce::StringRef licenseKey)
         return validation.result;
     }
 
+    const juce::ScopedLock tokenLock(tokenWriteLock);
+    if (generation != operationGeneration.load()) {
+        return juce::Result::fail("License activation was cancelled because the license was removed");
+    }
+
     settings.set (getTokenSettingsKey(), activation.token);
     if (! settings.save()) {
         return juce::Result::fail ("Could not write license token");
@@ -84,39 +93,52 @@ juce::Result LicenseManager::activate (juce::StringRef licenseKey)
     return juce::Result::ok();
 }
 
-juce::Result LicenseManager::refreshNow()
-{
+juce::Result LicenseManager::refreshNow() {
+    uint64_t generation;
     juce::String licenseKey;
     {
-        const juce::SpinLock::ScopedLockType lock (stateLock);
-        if (cachedPayload.has_value())
-            licenseKey = cachedPayload->licenseKey;
+        const juce::ScopedLock tokenLock(tokenWriteLock);
+        generation = operationGeneration.load();
+        {
+            const juce::SpinLock::ScopedLockType lock(stateLock);
+            if (cachedPayload.has_value()) {
+                licenseKey = cachedPayload->licenseKey;
+            }
+        }
+
+        if (licenseKey.isEmpty()) {
+            settings.reload();
+            const auto token = settings.getString(getTokenSettingsKey()).trim();
+            const auto payload = LicenseToken::inspectUnverified(token);
+            if (payload.has_value()) {
+                licenseKey = payload->licenseKey;
+            }
+        }
     }
 
-    if (licenseKey.isEmpty())
-    {
-        settings.reload();
-        const auto token = settings.getString (getTokenSettingsKey()).trim();
-        if (auto payload = LicenseToken::inspectUnverified (token))
-            licenseKey = payload->licenseKey;
+    if (licenseKey.isEmpty()) {
+        return juce::Result::fail("No cached license key is available to refresh");
     }
-
-    if (licenseKey.isEmpty())
-        return juce::Result::fail ("No cached license key is available to refresh");
-
-    return activate (licenseKey);
+    return activate(licenseKey, generation);
 }
 
-void LicenseManager::scheduleBackgroundRefresh()
-{
-    juce::Thread::launch ([this]
-    {
-        juce::ignoreUnused (refreshNow());
+void LicenseManager::scheduleBackgroundRefresh() {
+    runBackgroundTask([this] {
+        juce::ignoreUnused(refreshNow());
     });
 }
 
-void LicenseManager::deactivate()
-{
+void LicenseManager::runBackgroundTask(std::function<void()> task) {
+    const juce::SpinLock::ScopedLockType lock(stateLock);
+    std::erase_if(backgroundTasks, [](auto& work) {
+        return work.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+    });
+    backgroundTasks.push_back(std::async(std::launch::async, std::move(task)));
+}
+
+void LicenseManager::deactivate() {
+    const juce::ScopedLock tokenLock(tokenWriteLock);
+    ++operationGeneration;
     settings.remove (getTokenSettingsKey());
     settings.save();
     clearCachedState();
