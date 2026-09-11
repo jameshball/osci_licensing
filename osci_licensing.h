@@ -14,7 +14,7 @@
   vendor:            jameshball
   version:           0.1.0
   name:              osci-render licensing
-  description:       Licensing, update, and feedback helpers for osci-render products
+  description:       Licensing and update helpers for osci-render products
   website:           https://osci-render.com
   license:           GPLv3
   minimumCppStandard: 20
@@ -37,11 +37,6 @@
 
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
-#include "feedback/osci_FeedbackClient.h"
-#include "feedback/osci_FeedbackContextBuilder.h"
-#include "feedback/osci_FeedbackSettingsOverlay.h"
-#include "feedback/osci_FeedbackSuccessOverlay.h"
-#include "feedback/osci_FeedbackOverlay.h"
 #include "state/osci_UpdateSettings.h"
 #include "license/osci_LicenseManager.h"
 #include "system/osci_HardwareInfo.h"

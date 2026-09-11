@@ -5,11 +5,6 @@
 
 #include "license/osci_LicenseToken.cpp"
 #include "network/osci_BackendClient.cpp"
-#include "feedback/osci_FeedbackClient.cpp"
-#include "feedback/osci_FeedbackContextBuilder.cpp"
-#include "feedback/osci_FeedbackSettingsOverlay.cpp"
-#include "feedback/osci_FeedbackSuccessOverlay.cpp"
-#include "feedback/osci_FeedbackOverlay.cpp"
 #include "state/osci_UpdateSettings.cpp"
 #include "license/osci_LicenseManager.cpp"
 #include "system/osci_HardwareInfo.cpp"
