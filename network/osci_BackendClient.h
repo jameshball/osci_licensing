@@ -65,6 +65,8 @@ public:
 
     juce::Result getLatestVersion (const VersionQuery& query, VersionInfo& response) const;
     juce::Result getLegal(juce::StringRef product, juce::StringRef version, juce::var& response) const;
+    juce::Result fetchDocuments(const juce::var& manifest, juce::var& documents) const;
+    juce::Result getCurrentDocuments(juce::StringRef scope, juce::var& documents) const;
     juce::Result getDownloadUrl (const VersionInfo& version, juce::StringRef licenseToken, juce::String& url) const;
 
     const BackendClientConfig& getConfig() const noexcept { return config; }

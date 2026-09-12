@@ -36,6 +36,18 @@ class LegalOverlay final : public OverlayComponent {
 public:
     LegalOverlay(juce::var documents, std::function<void()> onContinue, bool preferences = false)
         : bundle(std::move(documents)), continuation(std::move(onContinue)) {
+        if (!LegalState::valid(bundle)) {
+            setOverlayTitle("Installation documents unavailable");
+            setDismissible(preferences);
+            description.setText("Open the installer to repair this installation and restore its Privacy & Terms documents. An internet connection is needed for the repair.", juce::dontSendNotification);
+            description.setFont(juce::FontOptions(14.0f));
+            description.setJustificationType(juce::Justification::topLeft);
+            addPanelContentAndMakeVisible(description);
+            proceed.setButtonText("Get installer");
+            proceed.onClick = [] { juce::URL("https://osci-render.com/download").launchInDefaultBrowser(); };
+            addPanelContentAndMakeVisible(proceed);
+            return;
+        }
         const bool firstPrivacy = !state.hasSeenOtherRevision(bundle, "privacy");
         const bool firstTerms = !state.hasSeenOtherRevision(bundle, "terms");
         requireAgreement = !state.termsAccepted(bundle);
@@ -111,7 +123,6 @@ public:
 
     static void ensure(juce::Component& parent, const juce::var& bundle, std::function<void()> next) {
         LegalState state;
-        if (!LegalState::valid(bundle)) { return; }
         if (state.hasAcknowledged(bundle)) { next(); return; }
         auto overlay = std::make_unique<LegalOverlay>(bundle, std::move(next));
         OverlayComponent::show(parent, std::move(overlay));

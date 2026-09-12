@@ -300,7 +300,7 @@ private:
             return;
         }
 
-        const auto documents = availableVersion->legal.isVoid() ? LegalState::bundledDocuments() : availableVersion->legal;
+        const auto documents = availableVersion->legal;
         LegalState state;
         if (!state.hasAcknowledged(documents)) {
             const juce::Component::SafePointer<UpdatePromptComponent> owner(this);

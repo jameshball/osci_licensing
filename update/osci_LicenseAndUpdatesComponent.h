@@ -1050,7 +1050,7 @@ private:
             return;
         }
 
-        const auto documents = versionToInstall.legal.isVoid() ? LegalState::bundledDocuments() : versionToInstall.legal;
+        const auto documents = versionToInstall.legal;
         LegalState state;
         if (!state.hasAcknowledged(documents)) {
             const juce::Component::SafePointer<LicenseAndUpdatesComponent> owner(this);

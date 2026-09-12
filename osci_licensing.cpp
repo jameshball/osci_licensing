@@ -6,7 +6,6 @@
 #include "license/osci_LicenseToken.cpp"
 #include "network/osci_BackendClient.cpp"
 #include "state/osci_UpdateSettings.cpp"
-#include "state/osci_LegalDocuments.cpp"
 #include "license/osci_LicenseManager.cpp"
 #include "system/osci_HardwareInfo.cpp"
 #include "system/osci_DawProcessDetector.cpp"

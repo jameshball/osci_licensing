@@ -7,25 +7,24 @@ class LegalState {
 public:
     LegalState() = default;
     explicit LegalState(SettingsStore store) : settings(std::move(store)) {}
-    static juce::var bundledDocuments();
 
     static juce::var mostRecentDocuments() {
         auto store = SettingsStore::forSharedLicensing();
         const auto bundle = juce::JSON::parse(store.getString("legal.osci-products.lastShownBundle"));
-        return valid(bundle) ? bundle : bundledDocuments();
+        return valid(bundle) ? bundle : juce::var();
     }
 
     static juce::var documentsFor(juce::StringRef product, juce::StringRef version) {
         auto store = SettingsStore::forSharedLicensing();
         const auto cached = juce::JSON::parse(store.getString("legal.cache." + juce::String(product) + "." + juce::String(version)));
-        return valid(cached) ? cached : bundledDocuments();
+        return valid(cached) ? cached : juce::var();
     }
 
-    static void cacheDocuments(juce::StringRef product, juce::StringRef version, const juce::var& bundle) {
-        if (!valid(bundle)) { return; }
+    static bool cacheDocuments(juce::StringRef product, juce::StringRef version, const juce::var& bundle) {
+        if (!valid(bundle)) { return false; }
         auto store = SettingsStore::forSharedLicensing();
         store.set("legal.cache." + juce::String(product) + "." + juce::String(version), juce::JSON::toString(bundle));
-        store.save();
+        return store.save();
     }
 
     static bool valid(const juce::var& bundle) {

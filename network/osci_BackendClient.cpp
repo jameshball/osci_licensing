@@ -250,7 +250,41 @@ juce::Result BackendClient::getLegal(juce::StringRef product, juce::StringRef ve
     juce::StringPairArray params;
     params.set("product", juce::String(product));
     params.set("version", juce::String(version));
-    return getJson("/api/legal", params, response);
+    auto result = getJson("/api/legal", params, response);
+    if (result.failed()) return result;
+    juce::var documents;
+    result = fetchDocuments(response["legal"], documents);
+    if (result.wasOk()) response.getDynamicObject()->setProperty("legal", documents);
+    return result;
+}
+
+juce::Result BackendClient::getCurrentDocuments(juce::StringRef scope, juce::var& documents) const {
+    const auto identifier = juce::String(scope);
+    if (identifier.isEmpty() || !identifier.containsOnly("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"))
+        return juce::Result::fail("Invalid document set.");
+    juce::var manifest;
+    const auto result = getJson("/documents/" + identifier + "/current.json", {}, manifest);
+    return result.failed() ? result : fetchDocuments(manifest, documents);
+}
+
+juce::Result BackendClient::fetchDocuments(const juce::var& manifest, juce::var& documents) const {
+    const auto address = manifest["url"].toString();
+    const auto expected = manifest["sha256"].toString();
+    if (!address.startsWith(endpoint("/documents/")) || address.contains("?") || address.contains("#")
+        || expected.length() != 64 || !expected.containsOnly("0123456789abcdef"))
+        return juce::Result::fail("The release document reference is invalid.");
+    int status = 0;
+    auto stream = juce::URL(address).createInputStream(juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
+        .withConnectionTimeoutMs(config.timeoutMs).withNumRedirectsToFollow(0).withStatusCode(&status));
+    if (stream == nullptr || status != 200) return juce::Result::fail("Could not download the release documents. Please try again.");
+    juce::MemoryBlock bytes;
+    stream->readIntoMemoryBlock(bytes, 1000001);
+    if (bytes.getSize() > 1000000 || juce::SHA256(bytes).toHexString() != expected)
+        return juce::Result::fail("The release documents could not be verified.");
+    documents = juce::JSON::parse(juce::String::fromUTF8(static_cast<const char*>(bytes.getData()), static_cast<int>(bytes.getSize())));
+    if (!LegalState::valid(documents) || documents["revision"] != manifest["revision"] || documents["scope"] != manifest["scope"])
+        return juce::Result::fail("The release documents do not match this release.");
+    return juce::Result::ok();
 }
 
 juce::Result BackendClient::getLatestVersion (const VersionQuery& query, VersionInfo& response) const
@@ -263,14 +297,10 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
     params.set ("current", query.currentVersion);
 
     juce::var body;
-    juce::var legalResponse;
     juce::var statisticsBundle;
     LegalState state;
     if (!state.statisticsDisabled() && query.currentVersion != "0.0.0.0") {
-        const auto legalResult = getLegal(query.product, query.currentVersion, legalResponse);
-        if (legalResult.wasOk() && static_cast<bool>(legalResponse["statistics_eligible"])) {
-            statisticsBundle = legalResponse["legal"];
-        }
+        statisticsBundle = LegalState::documentsFor(query.product, query.currentVersion);
     }
     const auto fetchResult = getJson("/api/version/latest", params, body, statisticsBundle);
     if (fetchResult.failed()) {
@@ -302,6 +332,10 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
         if (response.semver.isEmpty() || response.platform.isEmpty() || response.sha256.isEmpty())
             return juce::Result::fail ("Version response was incomplete");
 
+        juce::var documents;
+        const auto documentResult = fetchDocuments(response.legal, documents);
+        if (documentResult.failed()) return documentResult;
+        response.legal = documents;
         return juce::Result::ok();
     }
 
@@ -333,10 +367,12 @@ juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
                                             juce::String& url) const
 {
     LegalState legalState;
-    const auto documents = version.legal.isVoid() ? LegalState::bundledDocuments() : version.legal;
+    const auto documents = version.legal;
     if (!legalState.hasAcknowledged(documents)) {
         return juce::Result::fail("Review the release's Privacy & Terms before downloading.");
     }
+    if (!LegalState::cacheDocuments(version.product, version.semver, documents))
+        return juce::Result::fail("The release documents could not be saved. Installation has not started.");
     auto request = makeObject();
     setProperty (request, "product", version.product);
     setProperty (request, "semver", version.semver);
