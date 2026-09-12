@@ -28,7 +28,9 @@ public:
         for (const auto* kind : {"privacy", "terms"}) {
             const auto doc = bundle["documents"][kind];
             const auto text = doc["text"].toString();
+            const auto changeType = doc["change_type"].toString();
             if (!validRevision(doc["revision"]) || !doc["text"].isString() || text.isEmpty() || text.length() > 100000
+                || (changeType != "material" && changeType != "administrative")
                 || juce::SHA256(text.toRawUTF8(), text.getNumBytesAsUTF8()).toHexString() != doc["sha256"].toString()) {
                 return false;
             }
@@ -56,12 +58,16 @@ public:
 
     bool termsAccepted(const juce::var& bundle) {
         settings.reload();
-        return settings.getBool(key(bundle, "terms", "accepted"));
+        return settings.getBool(key(bundle, "terms", "accepted"))
+            || (isAdministrative(bundle, "terms")
+                && settings.getString("legal.osci-products.terms.lastAccepted").isNotEmpty());
     }
 
     bool privacyAcknowledged(const juce::var& bundle) {
         settings.reload();
-        return settings.getBool(key(bundle, "privacy", "acknowledged"));
+        return settings.getBool(key(bundle, "privacy", "acknowledged"))
+            || (isAdministrative(bundle, "privacy")
+                && settings.getString("legal.osci-products.privacy.lastAcknowledged").isNotEmpty());
     }
 
     bool recordShown(const juce::var& bundle) {
@@ -102,6 +108,10 @@ public:
     }
 
 private:
+    static bool isAdministrative(const juce::var& bundle, const char* kind) {
+        return bundle["documents"][kind]["change_type"].toString() == "administrative";
+    }
+
     static bool validRevision(const juce::var& value) {
         const auto revision = value.toString();
         return value.isString() && revision.isNotEmpty() && revision.length() <= 80
