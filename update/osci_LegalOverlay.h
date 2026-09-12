@@ -4,6 +4,12 @@ namespace osci {
 
 // A visible unchecked state is important on the dark notice background.
 class LegalCheckbox final : public juce::ToggleButton {
+public:
+    LegalCheckbox() {
+        setMouseClickGrabsKeyboardFocus(false);
+    }
+
+private:
     void paintButton(juce::Graphics& g, bool highlighted, bool) override {
         const auto box = juce::Rectangle<float>(4.0f, (getHeight() - 16.0f) * 0.5f, 16.0f, 16.0f);
         g.setColour(juce::Colours::white.withAlpha(highlighted ? 0.8f : 0.55f));
@@ -72,7 +78,7 @@ public:
             }
         };
         addPanelContentAndMakeVisible(disabled);
-        statistics.setText("Help improve updates with optional version and platform counts where permitted. No installation ID. Turn off at any time without affecting updates.", juce::dontSendNotification);
+        statistics.setText("Help improve osci-render and sosci by sharing anonymous version and platform counts.", juce::dontSendNotification);
         statistics.setFont(juce::FontOptions(13.0f));
         statistics.setJustificationType(juce::Justification::topLeft);
         addPanelContentAndMakeVisible(statistics);
