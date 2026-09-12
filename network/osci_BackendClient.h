@@ -30,6 +30,7 @@ struct ActivationResponse
 
 struct VersionInfo
 {
+    juce::var legal;
     juce::String product;
     juce::String semver;
     juce::String releaseTrack;
@@ -63,6 +64,8 @@ public:
                                   ActivationResponse& response) const;
 
     juce::Result getLatestVersion (const VersionQuery& query, VersionInfo& response) const;
+    juce::Result fetchDocuments(const juce::var& manifest, juce::var& documents) const;
+    juce::Result getCurrentDocuments(juce::StringRef scope, juce::var& documents) const;
     juce::Result getDownloadUrl (const VersionInfo& version, juce::StringRef licenseToken, juce::String& url) const;
 
     const BackendClientConfig& getConfig() const noexcept { return config; }
@@ -73,7 +76,7 @@ private:
     BackendClientConfig config;
 
     juce::String endpoint (juce::StringRef path) const;
-    juce::Result getJson (juce::StringRef path, const juce::StringPairArray& params, juce::var& response) const;
+    juce::Result getJson(juce::StringRef path, const juce::StringPairArray& params, juce::var& response, const juce::var& statisticsBundle = {}) const;
     juce::Result postJson (juce::StringRef path, const juce::var& body, juce::var& response) const;
 };
 

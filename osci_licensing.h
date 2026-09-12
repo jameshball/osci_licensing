@@ -37,6 +37,8 @@
 
 #include "license/osci_LicenseToken.h"
 #include "network/osci_BackendClient.h"
+#include "state/osci_LegalState.h"
+#include "update/osci_LegalOverlay.h"
 #include "state/osci_UpdateSettings.h"
 #include "license/osci_LicenseManager.h"
 #include "system/osci_HardwareInfo.h"

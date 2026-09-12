@@ -300,6 +300,19 @@ private:
             return;
         }
 
+        const auto documents = availableVersion->legal;
+        LegalState state;
+        if (!state.hasAcknowledged(documents)) {
+            const juce::Component::SafePointer<UpdatePromptComponent> owner(this);
+            auto* parent = getParentComponent();
+            if (parent != nullptr) {
+                LegalOverlay::ensure(*parent, documents, [owner] {
+                    if (owner != nullptr) { owner->downloadUpdate(); }
+                });
+            }
+            return;
+        }
+
         const auto token = licenseManager.getCachedToken();
         if (isPremiumDownloadWithoutToken (*availableVersion, token)) {
             if (onLicenseRequired) {
