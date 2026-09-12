@@ -35,8 +35,8 @@ private:
 class LegalOverlay final : public OverlayComponent {
 public:
     LegalOverlay(juce::var documents, std::function<void()> onContinue, bool preferences = false)
-        : bundle(std::move(documents)), continuation(std::move(onContinue)) {
-        if (!LegalState::valid(bundle)) {
+        : bundle(std::move(documents)), documentsValid(LegalState::valid(bundle)), continuation(std::move(onContinue)) {
+        if (!documentsValid) {
             setOverlayTitle("Installation documents unavailable");
             setDismissible(preferences);
             description.setText("Open the installer to repair this installation and restore its Privacy & Terms documents. An internet connection is needed for the repair.", juce::dontSendNotification);
@@ -130,6 +130,7 @@ public:
 
 private:
     juce::var bundle;
+    const bool documentsValid;
     LegalState state;
     bool requireAgreement = false;
     bool shownRecorded = false;
@@ -165,10 +166,18 @@ private:
     }
     juce::Point<int> getPreferredPanelSize() const override {
         const auto width = juce::jmax(160, juce::jmin(560, getWidth() - 80) - 48);
+        if (!documentsValid)
+            return getPanelSizeForContentSize({512, labelHeight(description, width) + 50});
         const int contentHeight = reader.isVisible() ? 420 : labelHeight(description, width) + labelHeight(statistics, width) + 138 + (requireAgreement ? 48 : 0) + (statisticsExpanded ? 36 : 0);
         return getPanelSizeForContentSize({512, contentHeight});
     }
     void resizeContent(juce::Rectangle<int> area) override {
+        if (!documentsValid) {
+            proceed.setBounds(area.removeFromBottom(34).removeFromRight(120));
+            area.removeFromBottom(16);
+            description.setBounds(area);
+            return;
+        }
         if (reader.isVisible()) {
             back.setBounds(area.removeFromBottom(32).removeFromLeft(100));
             area.removeFromBottom(12);

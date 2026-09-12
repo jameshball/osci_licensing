@@ -8,12 +8,6 @@ public:
     LegalState() = default;
     explicit LegalState(SettingsStore store) : settings(std::move(store)) {}
 
-    static juce::var mostRecentDocuments() {
-        auto store = SettingsStore::forSharedLicensing();
-        const auto bundle = juce::JSON::parse(store.getString("legal.osci-products.lastShownBundle"));
-        return valid(bundle) ? bundle : juce::var();
-    }
-
     static juce::var documentsFor(juce::StringRef product, juce::StringRef version) {
         auto store = SettingsStore::forSharedLicensing();
         const auto cached = juce::JSON::parse(store.getString("legal.cache." + juce::String(product) + "." + juce::String(version)));
@@ -72,7 +66,6 @@ public:
 
     bool recordShown(const juce::var& bundle) {
         if (!valid(bundle)) { return false; }
-        settings.set("legal.osci-products.lastShownBundle", juce::JSON::toString(bundle));
         for (const auto* kind : {"privacy", "terms"}) {
             const auto firstKey = "legal.osci-products." + juce::String(kind) + ".firstShown";
             if (settings.getString(firstKey).isEmpty()) {

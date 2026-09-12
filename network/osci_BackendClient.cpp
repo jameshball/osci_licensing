@@ -246,18 +246,6 @@ juce::Result BackendClient::activateLicense (juce::StringRef licenseKey,
     return juce::Result::ok();
 }
 
-juce::Result BackendClient::getLegal(juce::StringRef product, juce::StringRef version, juce::var& response) const {
-    juce::StringPairArray params;
-    params.set("product", juce::String(product));
-    params.set("version", juce::String(version));
-    auto result = getJson("/api/legal", params, response);
-    if (result.failed()) return result;
-    juce::var documents;
-    result = fetchDocuments(response["legal"], documents);
-    if (result.wasOk()) response.getDynamicObject()->setProperty("legal", documents);
-    return result;
-}
-
 juce::Result BackendClient::getCurrentDocuments(juce::StringRef scope, juce::var& documents) const {
     const auto identifier = juce::String(scope);
     if (identifier.isEmpty() || !identifier.containsOnly("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"))
@@ -332,6 +320,7 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
         if (response.semver.isEmpty() || response.platform.isEmpty() || response.sha256.isEmpty())
             return juce::Result::fail ("Version response was incomplete");
 
+        if (!response.isNewer) return juce::Result::ok();
         juce::var documents;
         const auto documentResult = fetchDocuments(response.legal, documents);
         if (documentResult.failed()) return documentResult;
