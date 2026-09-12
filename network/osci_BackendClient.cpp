@@ -88,6 +88,7 @@ namespace
                                          const VersionQuery& query,
                                          juce::DynamicObject& versionObject)
     {
+        response.legal = versionObject.getProperty("legal");
         response.product = query.product;
         response.releaseTrack = getString (versionObject, "release_track");
         response.variant = getString (versionObject, "variant");
@@ -245,6 +246,13 @@ juce::Result BackendClient::activateLicense (juce::StringRef licenseKey,
     return juce::Result::ok();
 }
 
+juce::Result BackendClient::getLegal(juce::StringRef product, juce::StringRef version, juce::var& response) const {
+    juce::StringPairArray params;
+    params.set("product", juce::String(product));
+    params.set("version", juce::String(version));
+    return getJson("/api/legal", params, response);
+}
+
 juce::Result BackendClient::getLatestVersion (const VersionQuery& query, VersionInfo& response) const
 {
     juce::StringPairArray params;
@@ -255,7 +263,16 @@ juce::Result BackendClient::getLatestVersion (const VersionQuery& query, Version
     params.set ("current", query.currentVersion);
 
     juce::var body;
-    const auto fetchResult = getJson ("/api/version/latest", params, body);
+    juce::var legalResponse;
+    juce::var statisticsBundle;
+    LegalState state;
+    if (!state.statisticsDisabled() && query.currentVersion != "0.0.0.0") {
+        const auto legalResult = getLegal(query.product, query.currentVersion, legalResponse);
+        if (legalResult.wasOk() && static_cast<bool>(legalResponse["statistics_eligible"])) {
+            statisticsBundle = legalResponse["legal"];
+        }
+    }
+    const auto fetchResult = getJson("/api/version/latest", params, body, statisticsBundle);
     if (fetchResult.failed()) {
         return fetchResult;
     }
@@ -315,6 +332,11 @@ juce::Result BackendClient::getDownloadUrl (const VersionInfo& version,
                                             juce::StringRef licenseToken,
                                             juce::String& url) const
 {
+    LegalState legalState;
+    const auto documents = version.legal.isVoid() ? LegalState::bundledDocuments() : version.legal;
+    if (!legalState.hasAcknowledged(documents)) {
+        return juce::Result::fail("Review the release's Privacy & Terms before downloading.");
+    }
     auto request = makeObject();
     setProperty (request, "product", version.product);
     setProperty (request, "semver", version.semver);
@@ -363,9 +385,7 @@ juce::String BackendClient::endpoint (juce::StringRef path) const
     return trimTrailingSlash (config.apiBaseUrl) + juce::String (path);
 }
 
-juce::Result BackendClient::getJson (juce::StringRef path,
-                                     const juce::StringPairArray& params,
-                                     juce::var& response) const
+juce::Result BackendClient::getJson(juce::StringRef path, const juce::StringPairArray& params, juce::var& response, const juce::var& statisticsBundle) const
 {
     juce::URL url (endpoint (path));
     for (const auto& key : params.getAllKeys())
@@ -375,11 +395,18 @@ juce::Result BackendClient::getJson (juce::StringRef path,
     const auto requestUrl = url.toString (true);
     logApiRequest ("GET", requestUrl);
 
+    juce::String headers = "Accept: application/json\r\n";
+    LegalState state;
+    if (juce::String(path) == "/api/version/latest" && !state.statisticsDisabled() && state.hasAcknowledged(statisticsBundle)) {
+        headers += "X-Version-Statistics: aggregate-v1\r\nX-Privacy-Revision: "
+            + statisticsBundle["documents"]["privacy"]["revision"].toString() + "\r\nX-Privacy-SHA256: "
+            + statisticsBundle["documents"]["privacy"]["sha256"].toString() + "\r\n";
+    }
     int statusCode = 0;
     auto stream = url.createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
                                              .withConnectionTimeoutMs (config.timeoutMs)
                                              .withStatusCode (&statusCode)
-                                             .withExtraHeaders ("Accept: application/json\r\n"));
+                                             .withExtraHeaders(headers));
 
     if (stream == nullptr)
     {
