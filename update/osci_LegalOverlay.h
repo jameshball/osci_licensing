@@ -34,18 +34,25 @@ private:
 
 class LegalOverlay final : public OverlayComponent {
 public:
-    LegalOverlay(juce::var documents, std::function<void()> onContinue, bool preferences = false)
-        : bundle(std::move(documents)), documentsValid(LegalState::valid(bundle)), continuation(std::move(onContinue)) {
+    LegalOverlay(juce::var documents, std::function<void()> onContinue, bool preferences = false,
+                 juce::String repairProduct = {}, juce::String repairVersion = {})
+        : bundle(std::move(documents)), documentsValid(LegalState::valid(bundle)), preferencesMode(preferences),
+          product(std::move(repairProduct)), version(std::move(repairVersion)), continuation(std::move(onContinue)) {
         if (!documentsValid) {
-            setOverlayTitle("Installation documents unavailable");
             setDismissible(preferences);
-            description.setText("Open the installer to repair this installation and restore its Privacy & Terms documents. An internet connection is needed for the repair.", juce::dontSendNotification);
+            setOverlayTitle("Restoring Privacy & Terms");
+            description.setText("Downloading the documents for this installation...", juce::dontSendNotification);
             description.setFont(juce::FontOptions(14.0f));
             description.setJustificationType(juce::Justification::topLeft);
             addPanelContentAndMakeVisible(description);
-            proceed.setButtonText("Get installer");
-            proceed.onClick = [] { juce::URL("https://osci-render.com/download").launchInDefaultBrowser(); };
+            proceed.setButtonText("Retry");
+            proceed.setEnabled(false);
+            proceed.onClick = [this] { repairDocuments(); };
             addPanelContentAndMakeVisible(proceed);
+            installer.setButtonText("Get installer");
+            installer.onClick = [] { juce::URL("https://osci-render.com/download").launchInDefaultBrowser(); };
+            addPanelContentAndMakeVisible(installer);
+            installer.setVisible(false);
             return;
         }
         const bool firstPrivacy = !state.hasSeenOtherRevision(bundle, "privacy");
@@ -116,30 +123,90 @@ public:
 
     void parentHierarchyChanged() override {
         OverlayComponent::parentHierarchyChanged();
+        if (!documentsValid && getParentComponent() != nullptr && !repairStarted) {
+            repairDocuments();
+            return;
+        }
         if (getParentComponent() != nullptr && !shownRecorded) {
             shownRecorded = state.recordShown(bundle);
         }
     }
 
-    static void ensure(juce::Component& parent, const juce::var& bundle, std::function<void()> next) {
+    static void ensure(juce::Component& parent, const juce::var& bundle, std::function<void()> next,
+                       juce::String product = {}, juce::String version = {}) {
         LegalState state;
         if (state.hasAcknowledged(bundle)) { next(); return; }
-        auto overlay = std::make_unique<LegalOverlay>(bundle, std::move(next));
+        auto overlay = std::make_unique<LegalOverlay>(bundle, std::move(next), false, std::move(product), std::move(version));
         OverlayComponent::show(parent, std::move(overlay));
     }
 
 private:
     juce::var bundle;
     const bool documentsValid;
+    const bool preferencesMode;
+    const juce::String product;
+    const juce::String version;
     LegalState state;
     bool requireAgreement = false;
     bool shownRecorded = false;
+    bool repairStarted = false;
     std::function<void()> continuation;
     juce::Label description, statistics;
-    juce::TextButton privacy, terms, proceed, back, statisticsSettings;
+    juce::TextButton privacy, terms, proceed, installer, back, statisticsSettings;
     bool statisticsExpanded = false;
     LegalCheckbox agreement, disabled;
     juce::TextEditor reader;
+    void repairDocuments() {
+        repairStarted = true;
+        if (product.isEmpty() || version.isEmpty()) {
+            showRepairFailure("The installation details needed for an automatic repair are unavailable.");
+            return;
+        }
+        setOverlayTitle("Restoring Privacy & Terms");
+        description.setText("Downloading the documents for this installation...", juce::dontSendNotification);
+        proceed.setEnabled(false);
+        installer.setVisible(false);
+        requestOverlayLayout();
+        const juce::Component::SafePointer<LegalOverlay> owner(this);
+        const auto repairProduct = product;
+        const auto repairVersion = version;
+        juce::Thread::launch([owner, repairProduct, repairVersion] {
+            juce::var downloaded;
+            auto result = BackendClient().getLegal(repairProduct, repairVersion, downloaded);
+            if (result.wasOk() && !LegalState::cacheDocuments(repairProduct, repairVersion, downloaded)) {
+                result = juce::Result::fail("The downloaded documents could not be saved.");
+            }
+            juce::MessageManager::callAsync([owner, result, downloaded, repairProduct, repairVersion] {
+                if (owner == nullptr) {
+                    return;
+                }
+                if (result.failed()) {
+                    owner->showRepairFailure(result.getErrorMessage());
+                    return;
+                }
+                auto next = std::move(owner->continuation);
+                const bool preferences = owner->preferencesMode;
+                LegalState state;
+                if (!preferences && state.hasAcknowledged(downloaded)) {
+                    owner->dismiss();
+                    if (next != nullptr) {
+                        juce::MessageManager::callAsync(std::move(next));
+                    }
+                    return;
+                }
+                owner->replaceWith(std::make_unique<LegalOverlay>(downloaded, std::move(next), preferences,
+                                                                  repairProduct, repairVersion));
+            });
+        });
+    }
+    void showRepairFailure(const juce::String& detail) {
+        setOverlayTitle("Privacy & Terms unavailable");
+        description.setText("The documents could not be downloaded. Check the connection and try again.\n\n" + detail,
+                            juce::dontSendNotification);
+        proceed.setEnabled(true);
+        installer.setVisible(true);
+        requestOverlayLayout();
+    }
     void showDocument(const char* kind) {
         const auto document = bundle["documents"][kind];
         reader.setText(document["text"].toString(), false);
@@ -173,7 +240,12 @@ private:
     }
     void resizeContent(juce::Rectangle<int> area) override {
         if (!documentsValid) {
-            proceed.setBounds(area.removeFromBottom(34).removeFromRight(120));
+            auto buttons = area.removeFromBottom(34);
+            proceed.setBounds(buttons.removeFromRight(120));
+            if (installer.isVisible()) {
+                buttons.removeFromRight(12);
+                installer.setBounds(buttons.removeFromRight(120));
+            }
             area.removeFromBottom(16);
             description.setBounds(area);
             return;

@@ -54,7 +54,8 @@ public:
 
         privacyButton.setButtonText("Privacy & Terms");
         privacyButton.onClick = [this] {
-            replaceWith(std::make_unique<LegalOverlay>(LegalState::documentsFor(config.productSlug, config.currentVersion), [] {}, true));
+            replaceWith(std::make_unique<LegalOverlay>(LegalState::documentsFor(config.productSlug, config.currentVersion),
+                                                       [] {}, true, config.productSlug, config.currentVersion));
         };
         addPanelContentAndMakeVisible(privacyButton);
 

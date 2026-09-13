@@ -255,6 +255,22 @@ juce::Result BackendClient::getCurrentDocuments(juce::StringRef scope, juce::var
     return result.failed() ? result : fetchDocuments(manifest, documents);
 }
 
+juce::Result BackendClient::getLegal(juce::StringRef product, juce::StringRef version, juce::var& documents) const {
+    juce::StringPairArray params;
+    params.set("product", juce::String(product));
+    params.set("version", juce::String(version));
+    juce::var response;
+    auto result = getJson("/api/legal", params, response);
+    if (result.failed()) {
+        return result;
+    }
+    const auto manifest = response["legal"];
+    if (manifest.getDynamicObject() == nullptr) {
+        return getCurrentDocuments("osci-products", documents);
+    }
+    return fetchDocuments(manifest, documents);
+}
+
 juce::Result BackendClient::fetchDocuments(const juce::var& manifest, juce::var& documents) const {
     const auto address = manifest["url"].toString();
     const auto expected = manifest["sha256"].toString();
