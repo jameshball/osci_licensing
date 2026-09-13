@@ -101,9 +101,6 @@ public:
         statistics.setFont(juce::FontOptions(13.0f));
         statistics.setJustificationType(juce::Justification::topLeft);
         addPanelContentAndMakeVisible(statistics);
-        statisticsSettings.setButtonText("Statistics settings");
-        statisticsSettings.onClick = [this] { statisticsExpanded = !statisticsExpanded; updateVisibility(); requestOverlayLayout(); };
-        addPanelContentAndMakeVisible(statisticsSettings);
         proceed.setButtonText(preferences ? "Save" : "Continue");
         proceed.setEnabled(!requireAgreement);
         agreement.onClick = [this] { proceed.setEnabled(!requireAgreement || agreement.getToggleState()); };
@@ -152,8 +149,7 @@ private:
     bool repairStarted = false;
     std::function<void()> continuation;
     juce::Label description, statistics;
-    juce::TextButton privacy, terms, proceed, installer, back, statisticsSettings;
-    bool statisticsExpanded = false;
+    juce::TextButton privacy, terms, proceed, installer, back;
     LegalCheckbox agreement, disabled;
     juce::TextEditor reader;
     void repairDocuments() {
@@ -217,11 +213,10 @@ private:
     }
     void updateVisibility() {
         const bool reading = reader.isVisible();
-        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statistics, &statisticsSettings, &proceed}) {
+        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statistics, &disabled, &proceed}) {
             component->setVisible(!reading);
         }
         agreement.setVisible(!reading && requireAgreement);
-        disabled.setVisible(!reading && statisticsExpanded);
         back.setVisible(reading);
     }
     int labelHeight(const juce::Label& label, int width) const {
@@ -235,7 +230,7 @@ private:
         const auto width = juce::jmax(160, juce::jmin(560, getWidth() - 80) - 48);
         if (!documentsValid)
             return getPanelSizeForContentSize({512, labelHeight(description, width) + 50});
-        const int contentHeight = reader.isVisible() ? 420 : labelHeight(description, width) + labelHeight(statistics, width) + 138 + (requireAgreement ? 48 : 0) + (statisticsExpanded ? 36 : 0);
+        const int contentHeight = reader.isVisible() ? 420 : labelHeight(description, width) + labelHeight(statistics, width) + 174 + (requireAgreement ? 48 : 0);
         return getPanelSizeForContentSize({512, contentHeight});
     }
     void resizeContent(juce::Rectangle<int> area) override {
@@ -262,8 +257,7 @@ private:
         terms.setBounds(links); area.removeFromTop(12);
         if (requireAgreement) { agreement.setBounds(area.removeFromTop(42)); area.removeFromTop(6); }
         statistics.setBounds(area.removeFromTop(labelHeight(statistics, area.getWidth())));
-        statisticsSettings.setBounds(area.removeFromTop(28).removeFromLeft(160));
-        if (statisticsExpanded) { disabled.setBounds(area.removeFromTop(36)); }
+        disabled.setBounds(area.removeFromTop(36));
         area.removeFromTop(16);
         proceed.setBounds(area.removeFromTop(34).removeFromRight(120));
     }

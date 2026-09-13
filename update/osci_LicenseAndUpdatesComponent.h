@@ -52,19 +52,11 @@ public:
         };
         addPanelControlAndMakeVisible (helpButton);
 
-        privacyButton.setButtonText("Privacy & Terms");
-        privacyButton.onClick = [this] {
-            replaceWith(std::make_unique<LegalOverlay>(LegalState::documentsFor(config.productSlug, config.currentVersion),
-                                                       [] {}, true, config.productSlug, config.currentVersion));
-        };
-        addPanelContentAndMakeVisible(privacyButton);
-
         refreshState();
         refreshCachedLicenseIfNeeded();
     }
 
 private:
-    juce::TextButton privacyButton;
     enum class NoticeKind {
         None,
         Info,
@@ -621,16 +613,16 @@ private:
 
     juce::Point<int> getPreferredPanelSize() const override {
         if (requiresPremiumLicense()) {
-            return { 560, licenseNotice.text.isNotEmpty() ? 308 : 282 };
+            return { 560, licenseNotice.text.isNotEmpty() ? 264 : 238 };
         }
 
         if (!updatesCardVisible) {
-            return { 600, 474 };
+            return { 600, 430 };
         }
 
         const auto licenseCardHeight = licenseNotice.text.isNotEmpty() ? 240 : 210;
         const auto updateCardHeight = getUpdateCardHeight();
-        return { 620, 86 + licenseCardHeight + 12 + updateCardHeight + 12 + 36 + 44 };
+        return { 620, 86 + licenseCardHeight + 12 + updateCardHeight + 12 + 36 };
     }
 
     void resizeContent (juce::Rectangle<int> area) override {
@@ -639,8 +631,6 @@ private:
         topBar.removeFromRight (28);
         topBar.removeFromRight (12);
         helpButton.setBounds (topBar.removeFromRight (28).withSizeKeepingCentre (26, 26));
-        privacyButton.setBounds(area.removeFromTop(32).removeFromRight(140));
-        area.removeFromTop(12);
 
         const auto premium = licenseManager.hasPremium();
         auto licenseCardHeight = 286;
