@@ -102,8 +102,7 @@ public:
         agreement.onClick = [this] { proceed.setEnabled(!requireAgreement || agreement.getToggleState()); };
         proceed.onClick = [this] {
             if (!state.acknowledge(bundle, !requireAgreement || agreement.getToggleState(), state.statisticsDisabled())) {
-                statistics.setText("The choice could not be saved. Please try again. Statistics remain unavailable until the choice is saved.", juce::dontSendNotification);
-                requestOverlayLayout();
+                proceed.setButtonText("Save failed — retry");
                 return;
             }
             auto next = std::move(continuation);
