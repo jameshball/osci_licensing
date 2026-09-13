@@ -89,16 +89,17 @@ public:
         agreement.setVisible(requireAgreement);
         addPanelContentAndMakeVisible(agreement);
         agreement.setVisible(requireAgreement);
-        disabled.setButtonText("Disable optional version statistics");
-        disabled.setToggleState(state.statisticsDisabled(), juce::dontSendNotification);
-        disabled.onClick = [this] {
-            if (!state.setStatisticsDisabled(disabled.getToggleState())) {
-                statistics.setText("The statistics preference could not be saved. Please try again.", juce::dontSendNotification);
+        statisticsSharing.setButtonText("Share anonymous version and platform statistics");
+        statisticsSharing.setToggleState(!state.statisticsDisabled(), juce::dontSendNotification);
+        statisticsSharing.onClick = [this] {
+            if (!state.setStatisticsDisabled(!statisticsSharing.getToggleState())) {
+                statisticsSharing.setToggleState(!state.statisticsDisabled(), juce::dontSendNotification);
+                statistics.setText("Optional statistics — the preference could not be saved. Please try again.", juce::dontSendNotification);
             }
         };
-        addPanelContentAndMakeVisible(disabled);
-        statistics.setText("Help improve osci-render and sosci by sharing anonymous version and platform counts.", juce::dontSendNotification);
-        statistics.setFont(juce::FontOptions(13.0f));
+        addPanelContentAndMakeVisible(statisticsSharing);
+        statistics.setText("Optional statistics", juce::dontSendNotification);
+        statistics.setFont(juce::FontOptions(14.0f, juce::Font::bold));
         statistics.setJustificationType(juce::Justification::topLeft);
         addPanelContentAndMakeVisible(statistics);
         proceed.setButtonText(preferences ? "Save" : "Continue");
@@ -150,7 +151,7 @@ private:
     std::function<void()> continuation;
     juce::Label description, statistics;
     juce::TextButton privacy, terms, proceed, installer, back;
-    LegalCheckbox agreement, disabled;
+    LegalCheckbox agreement, statisticsSharing;
     juce::TextEditor reader;
     void repairDocuments() {
         repairStarted = true;
@@ -213,7 +214,7 @@ private:
     }
     void updateVisibility() {
         const bool reading = reader.isVisible();
-        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statistics, &disabled, &proceed}) {
+        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statistics, &statisticsSharing, &proceed}) {
             component->setVisible(!reading);
         }
         agreement.setVisible(!reading && requireAgreement);
@@ -257,7 +258,7 @@ private:
         terms.setBounds(links); area.removeFromTop(12);
         if (requireAgreement) { agreement.setBounds(area.removeFromTop(42)); area.removeFromTop(6); }
         statistics.setBounds(area.removeFromTop(labelHeight(statistics, area.getWidth())));
-        disabled.setBounds(area.removeFromTop(36));
+        statisticsSharing.setBounds(area.removeFromTop(36));
         area.removeFromTop(16);
         proceed.setBounds(area.removeFromTop(34).removeFromRight(120));
     }
