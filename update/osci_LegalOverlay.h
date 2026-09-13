@@ -94,14 +94,9 @@ public:
         statisticsSharing.onClick = [this] {
             if (!state.setStatisticsDisabled(!statisticsSharing.getToggleState())) {
                 statisticsSharing.setToggleState(!state.statisticsDisabled(), juce::dontSendNotification);
-                statistics.setText("Optional statistics — the preference could not be saved. Please try again.", juce::dontSendNotification);
             }
         };
         addPanelContentAndMakeVisible(statisticsSharing);
-        statistics.setText("Optional statistics", juce::dontSendNotification);
-        statistics.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-        statistics.setJustificationType(juce::Justification::topLeft);
-        addPanelContentAndMakeVisible(statistics);
         proceed.setButtonText(preferences ? "Save" : "Continue");
         proceed.setEnabled(!requireAgreement);
         agreement.onClick = [this] { proceed.setEnabled(!requireAgreement || agreement.getToggleState()); };
@@ -149,7 +144,7 @@ private:
     bool shownRecorded = false;
     bool repairStarted = false;
     std::function<void()> continuation;
-    juce::Label description, statistics;
+    juce::Label description;
     juce::TextButton privacy, terms, proceed, installer, back;
     LegalCheckbox agreement, statisticsSharing;
     juce::TextEditor reader;
@@ -214,7 +209,7 @@ private:
     }
     void updateVisibility() {
         const bool reading = reader.isVisible();
-        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statistics, &statisticsSharing, &proceed}) {
+        for (auto* component : std::initializer_list<juce::Component*>{&description, &privacy, &terms, &statisticsSharing, &proceed}) {
             component->setVisible(!reading);
         }
         agreement.setVisible(!reading && requireAgreement);
@@ -231,7 +226,7 @@ private:
         const auto width = juce::jmax(160, juce::jmin(560, getWidth() - 80) - 48);
         if (!documentsValid)
             return getPanelSizeForContentSize({512, labelHeight(description, width) + 50});
-        const int contentHeight = reader.isVisible() ? 420 : labelHeight(description, width) + labelHeight(statistics, width) + 174 + (requireAgreement ? 48 : 0);
+        const int contentHeight = reader.isVisible() ? 420 : labelHeight(description, width) + 174 + (requireAgreement ? 48 : 0);
         return getPanelSizeForContentSize({512, contentHeight});
     }
     void resizeContent(juce::Rectangle<int> area) override {
@@ -257,7 +252,6 @@ private:
         privacy.setBounds(links.removeFromLeft((links.getWidth() - 12) / 2)); links.removeFromLeft(12);
         terms.setBounds(links); area.removeFromTop(12);
         if (requireAgreement) { agreement.setBounds(area.removeFromTop(42)); area.removeFromTop(6); }
-        statistics.setBounds(area.removeFromTop(labelHeight(statistics, area.getWidth())));
         statisticsSharing.setBounds(area.removeFromTop(36));
         area.removeFromTop(16);
         proceed.setBounds(area.removeFromTop(34).removeFromRight(120));
