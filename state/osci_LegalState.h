@@ -39,9 +39,7 @@ public:
     }
 
     bool hasAcknowledged(const juce::var& bundle) {
-        settings.reload();
-        return valid(bundle) && settings.getBool(key(bundle, "privacy", "acknowledged"))
-            && settings.getBool(key(bundle, "terms", "accepted"));
+        return valid(bundle) && privacyAcknowledged(bundle) && termsAccepted(bundle);
     }
 
     bool hasSeenKind(const char* kind) {
