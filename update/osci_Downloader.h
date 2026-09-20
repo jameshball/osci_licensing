@@ -23,6 +23,9 @@ public:
 
     juce::File getDownloadedFile() const;
 
+    static void cleanupDownloadsAsync();
+    static void deleteOldDownloads(const juce::File& directory, const juce::Array<juce::File>& pendingArtifacts);
+
 private:
     Config config;
     BackendClient backend;

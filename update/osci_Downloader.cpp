@@ -125,6 +125,34 @@ juce::File Downloader::getDownloadedFile() const {
     return downloadedFile;
 }
 
+void Downloader::cleanupDownloadsAsync() {
+    juce::Thread::launch([] {
+        juce::Array<juce::File> pendingArtifacts;
+        for (const auto* product : { "osci-render", "sosci", "osci-installer" }) {
+            const auto pending = PendingInstall(product).load();
+            if (pending.has_value()) {
+                pendingArtifacts.add(juce::File(pending->artifactPath));
+            }
+        }
+        for (const auto* product : { "osci-render", "sosci", "osci-installer" }) {
+            deleteOldDownloads(HardwareInfo::getDefaultStorageDirectory(product).getChildFile("downloads"), pendingArtifacts);
+        }
+    });
+}
+
+void Downloader::deleteOldDownloads(const juce::File& directory, const juce::Array<juce::File>& pendingArtifacts) {
+    // Downloads are written locally, so modification time measures their age, not the release's age.
+    // Leave recent files for external installers/retries, and never remove pending installations.
+    const auto cutoff = juce::Time::getCurrentTime() - juce::RelativeTime::days(7);
+    for (const auto& file : directory.findChildFiles(juce::File::findFiles, false)) {
+        const auto name = file.getFileName();
+        const bool isDownload = name.startsWith("osci-render-") || name.startsWith("sosci-") || name.startsWith("osci-installer-");
+        if (isDownload && !file.isSymbolicLink() && !pendingArtifacts.contains(file) && file.getLastModificationTime() < cutoff) {
+            file.deleteFile();
+        }
+    }
+}
+
 juce::File Downloader::targetFileFor(const VersionInfo& version) const {
     auto filename = version.product + "-" + version.semver + "-" + version.platform + "-" + version.sha256.toLowerCase();
     if (version.artifactKind != "binary") {
