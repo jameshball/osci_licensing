@@ -128,13 +128,13 @@ juce::File Downloader::getDownloadedFile() const {
 void Downloader::cleanupDownloadsAsync() {
     juce::Thread::launch([] {
         juce::Array<juce::File> pendingArtifacts;
-        for (const auto* product : { "osci-render", "sosci", "osci-installer" }) {
+        for (const auto* product : { "osci-render", "sosci", "osci-motion", "osci-installer" }) {
             const auto pending = PendingInstall(product).load();
             if (pending.has_value()) {
                 pendingArtifacts.add(juce::File(pending->artifactPath));
             }
         }
-        for (const auto* product : { "osci-render", "sosci", "osci-installer" }) {
+        for (const auto* product : { "osci-render", "sosci", "osci-motion", "osci-installer" }) {
             deleteOldDownloads(HardwareInfo::getDefaultStorageDirectory(product).getChildFile("downloads"), pendingArtifacts);
         }
     });

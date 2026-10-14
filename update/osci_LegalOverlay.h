@@ -60,7 +60,7 @@ public:
         requireAgreement = !state.termsAccepted(bundle);
         setOverlayTitle(preferences ? "Privacy & Terms" : (firstPrivacy && firstTerms ? "Before continuing" : "Privacy & Terms"));
         setDismissible(preferences);
-        juce::String intro = "Review the terms and privacy policy for osci-render and sosci.";
+        juce::String intro = "Review the terms and privacy policy for osci-render, sosci and osci-motion.";
         if (!firstPrivacy && !state.privacyAcknowledged(bundle)) {
             const auto summary = bundle["documents"]["privacy"]["summary"].toString();
             intro += "\n\nPrivacy Policy updated. " + summary;
