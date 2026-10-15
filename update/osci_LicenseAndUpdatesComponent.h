@@ -770,7 +770,7 @@ private:
             return "Update available";
         }
 
-        if (updateNotice.kind == NoticeKind::Error || updateNotice.kind == NoticeKind::Warning) {
+        if (updateNotice.kind == NoticeKind::Error || updateNotice.kind == NoticeKind::Warning || updateNotice.kind == NoticeKind::Success) {
             return updateNotice.text;
         }
 
@@ -1151,6 +1151,8 @@ private:
                     if (result.failed()) {
                         safeThis->setNotice (noticeTarget, result.getErrorMessage(), NoticeKind::Error);
                     } else {
+                        // Installed: no longer on offer.
+                        safeThis->availableVersion.reset();
                         auto message = juce::String ("Update installed. Restart the app or plugin host to use it.");
                         if (!report.warnings.isEmpty()) {
                             message << " " << report.warnings.joinIntoString (" ");
